@@ -1,0 +1,28 @@
+import { Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+
+interface ProtectedRouteProps {
+  allowedRoles?: string[];
+}
+
+export default function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
+  const { user, loading, isAuthenticated } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-slate-500 text-sm">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    return <Navigate to={`/${user.role === 'admin' ? 'admin' : user.role === 'teacher' ? 'teacher' : 'student'}`} replace />;
+  }
+
+  return <Outlet />;
+}

@@ -1,0 +1,222 @@
+import { Router, Response } from 'express';
+import pool from '../db';
+import { AuthRequest } from '../types';
+import { authenticate, authorize } from '../middleware/auth';
+import { auditLog, getClientIp } from '../middleware/audit';
+
+const router = Router();
+
+// GET /api/marks?month_id=&class_id=
+router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { month_id, class_id, student_id } = req.query as Record<string, string>;
+
+  if (!month_id) {
+    res.status(400).json({ error: 'month_id is required' });
+    return;
+  }
+
+  try {
+    let classFilter = '';
+    const params: (string | number)[] = [parseInt(month_id)];
+    let paramIndex = 2;
+
+    if (class_id) {
+      classFilter = ` AND s.class_id = $${paramIndex}`;
+      params.push(parseInt(class_id));
+      paramIndex++;
+    }
+
+    // Teachers can only see their assigned classes
+    if (req.user!.role === 'teacher') {
+      const teacherResult = await pool.query('SELECT id FROM teachers WHERE user_id = $1', [req.user!.id]);
+      if (teacherResult.rows.length === 0) {
+        res.json([]);
+        return;
+      }
+      const assignedClasses = await pool.query(
+        `SELECT class_id FROM teacher_classes tc
+         JOIN academic_years ay ON tc.academic_year_id = ay.id
+         WHERE tc.teacher_id = $1 AND ay.is_active = true`,
+        [teacherResult.rows[0].id]
+      );
+      const classIds = assignedClasses.rows.map((r: { class_id: number }) => r.class_id);
+      if (classIds.length === 0) {
+        res.json([]);
+        return;
+      }
+      classFilter += ` AND s.class_id = ANY($${paramIndex}::int[])`;
+      params.push(classIds as unknown as number);
+      paramIndex++;
+    }
+
+    if (student_id) {
+      classFilter += ` AND s.id = $${paramIndex}`;
+      params.push(parseInt(student_id));
+    }
+
+    // Get students with their marks for this month
+    const students = await pool.query(
+      `SELECT s.id, s.name, s.admission_number, c.name as class_name, s.class_id
+       FROM students s
+       JOIN classes c ON s.class_id = c.id
+       WHERE s.is_active = true ${classFilter}
+       ORDER BY s.name`,
+      params
+    );
+
+    // Get marks for all these students
+    const studentIds = students.rows.map((s: { id: number }) => s.id);
+    let marks: any[] = [];
+    if (studentIds.length > 0) {
+      const marksResult = await pool.query(
+        `SELECT em.*, sub.name as subject_name
+         FROM exam_marks em
+         JOIN subjects sub ON em.subject_id = sub.id
+         WHERE em.academic_month_id = $1 AND em.student_id = ANY($2::int[])`,
+        [parseInt(month_id), studentIds]
+      );
+      marks = marksResult.rows;
+    }
+
+    // Build response: each student with their marks
+    const response = students.rows.map((student: any) => {
+      const studentMarks = marks.filter((m: any) => m.student_id === student.id);
+      return { ...student, marks: studentMarks };
+    });
+
+    res.json(response);
+  } catch (err) {
+    console.error('Get marks error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/marks - Save marks for a student
+router.post('/', authenticate, authorize('admin', 'teacher'), async (req: AuthRequest, res: Response): Promise<void> => {
+  const { student_id, academic_month_id, marks } = req.body;
+
+  if (!student_id || !academic_month_id || !Array.isArray(marks)) {
+    res.status(400).json({ error: 'student_id, academic_month_id, and marks array are required' });
+    return;
+  }
+
+  // Verify the month is not locked
+  const monthResult = await pool.query('SELECT status FROM academic_months WHERE id = $1', [academic_month_id]);
+  if (monthResult.rows.length === 0) {
+    res.status(404).json({ error: 'Academic month not found' });
+    return;
+  }
+  if (monthResult.rows[0].status === 'locked') {
+    res.status(403).json({ error: 'This month is locked. Marks cannot be edited.' });
+    return;
+  }
+
+  // If teacher, verify access to the student's class
+  if (req.user!.role === 'teacher') {
+    const teacherResult = await pool.query('SELECT id FROM teachers WHERE user_id = $1', [req.user!.id]);
+    if (teacherResult.rows.length === 0) {
+      res.status(403).json({ error: 'Teacher profile not found' });
+      return;
+    }
+
+    const studentClass = await pool.query('SELECT class_id FROM students WHERE id = $1', [student_id]);
+    if (studentClass.rows.length === 0) {
+      res.status(404).json({ error: 'Student not found' });
+      return;
+    }
+
+    const hasAccess = await pool.query(
+      `SELECT 1 FROM teacher_classes tc
+       JOIN academic_years ay ON tc.academic_year_id = ay.id
+       WHERE tc.teacher_id = $1 AND tc.class_id = $2 AND ay.is_active = true`,
+      [teacherResult.rows[0].id, studentClass.rows[0].class_id]
+    );
+
+    if (hasAccess.rows.length === 0) {
+      res.status(403).json({ error: 'You do not have access to this student\'s class' });
+      return;
+    }
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    for (const mark of marks) {
+      if (mark.subject_id === undefined) continue;
+
+      await client.query(
+        `INSERT INTO exam_marks (student_id, subject_id, academic_month_id, marks, remarks, entered_by)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (student_id, subject_id, academic_month_id)
+         DO UPDATE SET marks = $4, remarks = $5, entered_by = $6, updated_at = CURRENT_TIMESTAMP`,
+        [student_id, mark.subject_id, academic_month_id, mark.marks ?? null, mark.remarks || null, req.user!.id]
+      );
+    }
+
+    await client.query('COMMIT');
+    await auditLog(req.user!.id, 'SAVE_MARKS', 'exam_marks', student_id, { academic_month_id, count: marks.length }, getClientIp(req));
+
+    res.json({ message: 'Marks saved successfully' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Save marks error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+});
+
+// GET /api/marks/progress-card/:studentId/:monthId
+router.get('/progress-card/:studentId/:monthId', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const student = await pool.query(
+      `SELECT s.*, c.name as class_name FROM students s
+       LEFT JOIN classes c ON s.class_id = c.id WHERE s.id = $1`,
+      [req.params.studentId]
+    );
+
+    if (student.rows.length === 0) {
+      res.status(404).json({ error: 'Student not found' });
+      return;
+    }
+
+    const month = await pool.query(
+      `SELECT am.*, ay.name as year_name FROM academic_months am
+       JOIN academic_years ay ON am.academic_year_id = ay.id WHERE am.id = $1`,
+      [req.params.monthId]
+    );
+
+    if (month.rows.length === 0) {
+      res.status(404).json({ error: 'Academic month not found' });
+      return;
+    }
+
+    const marks = await pool.query(
+      `SELECT em.marks, em.remarks, sub.name as subject_name
+       FROM exam_marks em
+       JOIN subjects sub ON em.subject_id = sub.id
+       WHERE em.student_id = $1 AND em.academic_month_id = $2
+       ORDER BY sub.name`,
+      [req.params.studentId, req.params.monthId]
+    );
+
+    const settings = await pool.query("SELECT key, value FROM settings");
+    const settingsMap: Record<string, string> = {};
+    settings.rows.forEach((s: { key: string; value: string }) => {
+      settingsMap[s.key] = s.value;
+    });
+
+    res.json({
+      institution: settingsMap,
+      student: student.rows[0],
+      month: month.rows[0],
+      marks: marks.rows,
+    });
+  } catch (err) {
+    console.error('Get progress card error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+export default router;
