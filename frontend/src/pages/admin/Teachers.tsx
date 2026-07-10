@@ -4,11 +4,10 @@ import api from '../../api/client';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useToast } from '../../contexts/ToastContext';
-import type { Teacher, ClassRecord } from '../../types';
+import type { Teacher } from '../../types';
 
 export default function Teachers() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
@@ -28,7 +27,6 @@ export default function Teachers() {
   }, [addToast]);
 
   useEffect(() => { fetchTeachers(); }, [fetchTeachers]);
-  useEffect(() => { api.get('/classes').then(r => setClasses(r.data)).catch(() => {}); }, []);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -104,7 +102,6 @@ export default function Teachers() {
         isOpen={showForm}
         onClose={() => { setShowForm(false); setEditing(null); }}
         teacher={editing}
-        classes={classes}
         onSuccess={() => { setShowForm(false); setEditing(null); fetchTeachers(); }}
       />
 
@@ -121,8 +118,8 @@ export default function Teachers() {
   );
 }
 
-function TeacherFormModal({ isOpen, onClose, teacher, classes, onSuccess }: {
-  isOpen: boolean; onClose: () => void; teacher: Teacher | null; classes: ClassRecord[]; onSuccess: () => void;
+function TeacherFormModal({ isOpen, onClose, teacher, onSuccess }: {
+  isOpen: boolean; onClose: () => void; teacher: Teacher | null; onSuccess: () => void;
 }) {
   const [form, setForm] = useState({ name: '', phone: '', email: '', is_active: true });
   const [saving, setSaving] = useState(false);
