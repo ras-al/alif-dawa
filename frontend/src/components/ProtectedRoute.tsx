@@ -21,7 +21,8 @@ export default function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    return <Navigate to={`/${user.role === 'admin' ? 'admin' : user.role === 'teacher' ? 'teacher' : 'student'}`} replace />;
+    const roleHome = user.role === 'admin' ? '/admin' : user.role === 'teacher' ? '/teacher' : user.role === 'class' ? '/class' : '/student';
+    return <Navigate to={roleHome} replace />;
   }
 
   return <Outlet />;

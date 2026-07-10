@@ -16,7 +16,7 @@ CREATE TABLE roles (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO roles (name) VALUES ('admin'), ('teacher'), ('student');
+INSERT INTO roles (name) VALUES ('admin'), ('teacher'), ('student'), ('class');
 
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
@@ -57,6 +57,7 @@ CREATE TABLE classes (
     id SERIAL PRIMARY KEY,
     name VARCHAR(20) UNIQUE NOT NULL,
     display_order INTEGER DEFAULT 0,
+    user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -101,6 +102,19 @@ CREATE TABLE teacher_classes (
 
 CREATE INDEX idx_teacher_classes_teacher_id ON teacher_classes(teacher_id);
 CREATE INDEX idx_teacher_classes_class_id ON teacher_classes(class_id);
+
+-- Teacher-Subject-Class mapping: which teacher teaches which subject in which class
+CREATE TABLE class_teacher_subjects (
+    id SERIAL PRIMARY KEY,
+    class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+    subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+    academic_year_id INTEGER NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+    UNIQUE(class_id, subject_id, academic_year_id)
+);
+
+CREATE INDEX idx_cts_class_id ON class_teacher_subjects(class_id);
+CREATE INDEX idx_cts_teacher_id ON class_teacher_subjects(teacher_id);
 
 -- ============================================================
 -- STUDENTS

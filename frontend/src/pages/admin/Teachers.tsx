@@ -64,9 +64,8 @@ export default function Teachers() {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="text-left px-4 py-2.5 font-medium text-slate-600">Name</th>
-                <th className="text-left px-4 py-2.5 font-medium text-slate-600 hidden sm:table-cell">Username</th>
                 <th className="text-left px-4 py-2.5 font-medium text-slate-600 hidden md:table-cell">Phone</th>
-                <th className="text-left px-4 py-2.5 font-medium text-slate-600">Assigned Classes</th>
+                <th className="text-left px-4 py-2.5 font-medium text-slate-600 hidden md:table-cell">Email</th>
                 <th className="text-left px-4 py-2.5 font-medium text-slate-600">Status</th>
                 <th className="text-right px-4 py-2.5 font-medium text-slate-600">Actions</th>
               </tr>
@@ -75,16 +74,8 @@ export default function Teachers() {
               {teachers.map((t) => (
                 <tr key={t.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                   <td className="px-4 py-2.5 text-slate-900 font-medium">{t.name}</td>
-                  <td className="px-4 py-2.5 text-slate-600 hidden sm:table-cell">{t.username || '—'}</td>
                   <td className="px-4 py-2.5 text-slate-600 hidden md:table-cell">{t.phone || '—'}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex flex-wrap gap-1">
-                      {(t.assigned_classes || []).map((c) => (
-                        <span key={c} className="inline-flex px-2 py-0.5 text-xs font-medium rounded bg-slate-100 text-slate-700">{c}</span>
-                      ))}
-                      {(!t.assigned_classes || t.assigned_classes.length === 0) && <span className="text-slate-400">—</span>}
-                    </div>
-                  </td>
+                  <td className="px-4 py-2.5 text-slate-600 hidden md:table-cell">{t.email || '—'}</td>
                   <td className="px-4 py-2.5">
                     <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
                       t.is_active ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
@@ -133,7 +124,7 @@ export default function Teachers() {
 function TeacherFormModal({ isOpen, onClose, teacher, classes, onSuccess }: {
   isOpen: boolean; onClose: () => void; teacher: Teacher | null; classes: ClassRecord[]; onSuccess: () => void;
 }) {
-  const [form, setForm] = useState({ name: '', phone: '', email: '', username: '', password: '', class_ids: [] as number[], is_active: true });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', is_active: true });
   const [saving, setSaving] = useState(false);
   const { addToast } = useToast();
 
@@ -141,21 +132,12 @@ function TeacherFormModal({ isOpen, onClose, teacher, classes, onSuccess }: {
     if (teacher) {
       setForm({
         name: teacher.name, phone: teacher.phone || '', email: teacher.email || '',
-        username: teacher.username || '', password: '',
-        class_ids: teacher.classes?.map(c => c.class_id) || [],
         is_active: teacher.is_active,
       });
     } else {
-      setForm({ name: '', phone: '', email: '', username: '', password: '', class_ids: [], is_active: true });
+      setForm({ name: '', phone: '', email: '', is_active: true });
     }
   }, [teacher, isOpen]);
-
-  const toggleClass = (classId: number) => {
-    setForm(prev => ({
-      ...prev,
-      class_ids: prev.class_ids.includes(classId) ? prev.class_ids.filter(id => id !== classId) : [...prev.class_ids, classId],
-    }));
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,39 +176,6 @@ function TeacherFormModal({ isOpen, onClose, teacher, classes, onSuccess }: {
             <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
             <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
               className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#14532D] focus:border-[#14532D]" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Username {!teacher && '*'}</label>
-            <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })}
-              disabled={!!teacher}
-              className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-1 focus:ring-[#14532D] focus:border-[#14532D]" />
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Password {teacher ? '(leave blank to keep current)' : '*'}
-          </label>
-          <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
-            required={!teacher}
-            className="block w-full max-w-xs px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#14532D] focus:border-[#14532D]" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Assign Classes</label>
-          <div className="flex flex-wrap gap-2">
-            {classes.map(c => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => toggleClass(c.id)}
-                className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
-                  form.class_ids.includes(c.id)
-                    ? 'bg-[#14532D] text-white border-[#14532D]'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                {c.name}
-              </button>
-            ))}
           </div>
         </div>
         {teacher && (

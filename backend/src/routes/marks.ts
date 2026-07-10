@@ -17,10 +17,15 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
 
   try {
     let classFilter = '';
-    const params: (string | number)[] = [parseInt(month_id)];
-    let paramIndex = 2;
+    const params: (string | number)[] = [];
+    let paramIndex = 1;
 
-    if (class_id) {
+    // Class login: force filter to their own class
+    if (req.user!.role === 'class' && req.user!.classId) {
+      classFilter = ` AND s.class_id = $${paramIndex}`;
+      params.push(req.user!.classId);
+      paramIndex++;
+    } else if (class_id) {
       classFilter = ` AND s.class_id = $${paramIndex}`;
       params.push(parseInt(class_id));
       paramIndex++;
@@ -111,8 +116,20 @@ router.post('/', authenticate, authorize('admin', 'teacher'), async (req: AuthRe
     return;
   }
 
+  // Class login: verify student belongs to their class
+  if (req.user!.role === 'class' && req.user!.classId) {
+    const studentClass = await pool.query('SELECT class_id FROM students WHERE id = $1', [student_id]);
+    if (studentClass.rows.length === 0) {
+      res.status(404).json({ error: 'Student not found' });
+      return;
+    }
+    if (studentClass.rows[0].class_id !== req.user!.classId) {
+      res.status(403).json({ error: 'Access denied: student not in your class' });
+      return;
+    }
+  }
   // If teacher, verify access to the student's class
-  if (req.user!.role === 'teacher') {
+  else if (req.user!.role === 'teacher') {
     const teacherResult = await pool.query('SELECT id FROM teachers WHERE user_id = $1', [req.user!.id]);
     if (teacherResult.rows.length === 0) {
       res.status(403).json({ error: 'Teacher profile not found' });
@@ -181,6 +198,14 @@ router.get('/progress-card/:studentId/:monthId', authenticate, async (req: AuthR
       return;
     }
 
+    // Class login: verify student belongs to their class
+    if (req.user!.role === 'class' && req.user!.classId) {
+      if (student.rows[0].class_id !== req.user!.classId) {
+        res.status(403).json({ error: 'Access denied: student not in your class' });
+        return;
+      }
+    }
+
     const month = await pool.query(
       `SELECT am.*, ay.name as year_name FROM academic_months am
        JOIN academic_years ay ON am.academic_year_id = ay.id WHERE am.id = $1`,
@@ -201,6 +226,18 @@ router.get('/progress-card/:studentId/:monthId', authenticate, async (req: AuthR
       [req.params.studentId, req.params.monthId]
     );
 
+    // Get attendance summary for this student
+    const attendance = await pool.query(
+      `SELECT status, COUNT(*) as count FROM attendance
+       WHERE student_id = $1
+       GROUP BY status`,
+      [req.params.studentId]
+    );
+    const attendanceSummary: Record<string, number> = { present: 0, absent: 0, leave: 0 };
+    attendance.rows.forEach((row: { status: string; count: string }) => {
+      attendanceSummary[row.status] = parseInt(row.count);
+    });
+
     const settings = await pool.query("SELECT key, value FROM settings");
     const settingsMap: Record<string, string> = {};
     settings.rows.forEach((s: { key: string; value: string }) => {
@@ -212,9 +249,104 @@ router.get('/progress-card/:studentId/:monthId', authenticate, async (req: AuthR
       student: student.rows[0],
       month: month.rows[0],
       marks: marks.rows,
+      attendance: attendanceSummary,
     });
   } catch (err) {
     console.error('Get progress card error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/marks/progress-card/class/:classId/:monthId
+router.get('/progress-card/class/:classId/:monthId', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    // Class login: verify student belongs to their class
+    if (req.user!.role === 'class' && req.user!.classId) {
+      if (parseInt(req.params.classId) !== req.user!.classId) {
+        res.status(403).json({ error: 'Access denied: cannot view other class progress cards' });
+        return;
+      }
+    }
+
+    const month = await pool.query(
+      `SELECT am.*, ay.name as year_name FROM academic_months am
+       JOIN academic_years ay ON am.academic_year_id = ay.id WHERE am.id = $1`,
+      [req.params.monthId]
+    );
+
+    if (month.rows.length === 0) {
+      res.status(404).json({ error: 'Academic month not found' });
+      return;
+    }
+
+    const students = await pool.query(
+      `SELECT s.*, c.name as class_name FROM students s
+       JOIN classes c ON s.class_id = c.id
+       WHERE s.class_id = $1 AND s.is_active = true
+       ORDER BY s.name`,
+      [req.params.classId]
+    );
+
+    const classSubjects = await pool.query(
+      `SELECT s.id, s.name FROM class_subjects cs
+       JOIN subjects s ON cs.subject_id = s.id
+       WHERE cs.class_id = $1 ORDER BY cs.display_order`,
+      [req.params.classId]
+    );
+
+    const settings = await pool.query("SELECT key, value FROM settings");
+    const settingsMap: Record<string, string> = {};
+    settings.rows.forEach((s: { key: string; value: string }) => {
+      settingsMap[s.key] = s.value;
+    });
+
+    const studentIds = students.rows.map((s: any) => s.id);
+    let marks: any[] = [];
+    let attendance: any[] = [];
+
+    if (studentIds.length > 0) {
+      const marksResult = await pool.query(
+        `SELECT em.student_id, em.marks, em.remarks, sub.name as subject_name
+         FROM exam_marks em
+         JOIN subjects sub ON em.subject_id = sub.id
+         WHERE em.academic_month_id = $1 AND em.student_id = ANY($2::int[])
+         ORDER BY sub.name`,
+        [req.params.monthId, studentIds]
+      );
+      marks = marksResult.rows;
+
+      const attendanceResult = await pool.query(
+        `SELECT student_id, status, COUNT(*) as count FROM attendance
+         WHERE student_id = ANY($1::int[])
+         GROUP BY student_id, status`,
+        [studentIds]
+      );
+      attendance = attendanceResult.rows;
+    }
+
+    const studentsData = students.rows.map((student: any) => {
+      const studentMarks = marks.filter(m => m.student_id === student.id);
+      const studentAttendance = attendance.filter(a => a.student_id === student.id);
+      const attendanceSummary: Record<string, number> = { present: 0, absent: 0, leave: 0 };
+      studentAttendance.forEach(a => {
+        attendanceSummary[a.status] = parseInt(a.count);
+      });
+
+      return {
+        student,
+        marks: studentMarks,
+        attendance: attendanceSummary
+      };
+    });
+
+    res.json({
+      institution: settingsMap,
+      month: month.rows[0],
+      subjects: classSubjects.rows,
+      students: studentsData
+    });
+  } catch (err) {
+    console.error('Get class progress card error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

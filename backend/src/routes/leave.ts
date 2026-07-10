@@ -24,6 +24,10 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
       }
       query += ' WHERE lr.student_id = $1';
       params.push(studentResult.rows[0].id);
+    } else if (req.user!.role === 'class' && req.user!.classId) {
+      // Class login: only see leave requests from their class
+      query += ' WHERE s.class_id = $1';
+      params.push(req.user!.classId);
     }
 
     query += ' ORDER BY lr.created_at DESC';
@@ -62,6 +66,15 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<
     return;
   }
 
+  // Class login: verify student belongs to their class
+  if (req.user!.role === 'class' && req.user!.classId) {
+    const check = await pool.query('SELECT class_id FROM students WHERE id = $1', [finalStudentId]);
+    if (check.rows.length === 0 || check.rows[0].class_id !== req.user!.classId) {
+      res.status(403).json({ error: 'Access denied: student not in your class' });
+      return;
+    }
+  }
+
   try {
     const result = await pool.query(
       `INSERT INTO leave_requests (student_id, start_date, end_date, reason)
@@ -81,6 +94,20 @@ router.put('/:id/review', authenticate, authorize('admin', 'teacher'), async (re
   if (!['approved', 'rejected'].includes(status)) {
     res.status(400).json({ error: 'Status must be approved or rejected' });
     return;
+  }
+
+  // Class login: verify the leave request belongs to their class
+  if (req.user!.role === 'class' && req.user!.classId) {
+    const check = await pool.query(
+      `SELECT s.class_id FROM leave_requests lr
+       JOIN students s ON lr.student_id = s.id
+       WHERE lr.id = $1`,
+      [req.params.id]
+    );
+    if (check.rows.length === 0 || check.rows[0].class_id !== req.user!.classId) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
   }
 
   try {

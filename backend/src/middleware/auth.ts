@@ -25,7 +25,9 @@ export function authorize(...roles: string[]) {
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
-    if (!roles.includes(req.user.role)) {
+    // 'class' role is treated like 'teacher' for permission purposes
+    const effectiveRole = req.user.role === 'class' ? 'class' : req.user.role;
+    if (!roles.includes(effectiveRole) && !(req.user.role === 'class' && roles.includes('teacher'))) {
       res.status(403).json({ error: 'Insufficient permissions' });
       return;
     }

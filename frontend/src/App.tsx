@@ -12,6 +12,7 @@ import Classes from './pages/admin/Classes';
 import AcademicYears from './pages/admin/AcademicYears';
 import MarkEntry from './pages/admin/MarkEntry';
 import ProgressCard from './pages/admin/ProgressCard';
+import ClassProgressCard from './pages/admin/ClassProgressCard';
 import Attendance from './pages/admin/Attendance';
 import LeaveRequests from './pages/admin/LeaveRequests';
 import Notices from './pages/admin/Notices';
@@ -22,11 +23,24 @@ import Settings from './pages/admin/Settings';
 // Teacher pages
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
 
+// Class pages
+import ClassDashboard from './pages/class/ClassDashboard';
+import ClassStudents from './pages/class/ClassStudents';
+
 // Student pages
 import StudentDashboard from './pages/student/StudentDashboard';
 
 function App() {
   const { user } = useAuth();
+
+  const getRoleHome = (role?: string) => {
+    switch (role) {
+      case 'admin': return '/admin';
+      case 'teacher': return '/teacher';
+      case 'class': return '/class';
+      default: return '/student';
+    }
+  };
 
   return (
     <Routes>
@@ -51,8 +65,11 @@ function App() {
       </Route>
 
       {/* Progress Card - printable standalone page */}
-      <Route element={<ProtectedRoute allowedRoles={['admin', 'teacher']} />}>
+      <Route element={<ProtectedRoute allowedRoles={['admin', 'teacher', 'class']} />}>
         <Route path="/admin/progress-card/:studentId/:monthId" element={<ProgressCard />} />
+        <Route path="/admin/progress-card-class/:classId/:monthId" element={<ClassProgressCard />} />
+        <Route path="/class/progress-card/:studentId/:monthId" element={<ProgressCard />} />
+        <Route path="/class/progress-card-class/:classId/:monthId" element={<ClassProgressCard />} />
       </Route>
 
       {/* Teacher Routes */}
@@ -64,6 +81,18 @@ function App() {
           <Route path="/teacher/attendance" element={<Attendance />} />
           <Route path="/teacher/leave" element={<LeaveRequests />} />
           <Route path="/teacher/notices" element={<Notices />} />
+        </Route>
+      </Route>
+
+      {/* Class Routes */}
+      <Route element={<ProtectedRoute allowedRoles={['class']} />}>
+        <Route element={<Layout />}>
+          <Route path="/class" element={<ClassDashboard />} />
+          <Route path="/class/students" element={<ClassStudents />} />
+          <Route path="/class/marks" element={<MarkEntry />} />
+          <Route path="/class/attendance" element={<Attendance />} />
+          <Route path="/class/leave" element={<LeaveRequests />} />
+          <Route path="/class/notices" element={<Notices />} />
         </Route>
       </Route>
 
@@ -81,7 +110,7 @@ function App() {
       {/* Default redirect */}
       <Route path="/" element={
         user ? (
-          <Navigate to={user.role === 'admin' ? '/admin' : user.role === 'teacher' ? '/teacher' : '/student'} replace />
+          <Navigate to={getRoleHome(user.role)} replace />
         ) : (
           <Navigate to="/login" replace />
         )

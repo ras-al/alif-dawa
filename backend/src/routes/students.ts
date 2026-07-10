@@ -20,8 +20,14 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
     const params: (string | number | boolean)[] = [];
     let paramIndex = 1;
 
+    // Class login: only see students in their class
+    if (req.user!.role === 'class' && req.user!.classId) {
+      whereClause += ` AND s.class_id = $${paramIndex}`;
+      params.push(req.user!.classId);
+      paramIndex++;
+    }
     // Teachers can only see their assigned classes
-    if (req.user!.role === 'teacher') {
+    else if (req.user!.role === 'teacher') {
       const teacherResult = await pool.query('SELECT id FROM teachers WHERE user_id = $1', [req.user!.id]);
       if (teacherResult.rows.length === 0) {
         res.json({ data: [], total: 0, page: parseInt(page), limit: parseInt(limit) });
@@ -51,9 +57,12 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
     }
 
     if (class_id) {
-      whereClause += ` AND s.class_id = $${paramIndex}`;
-      params.push(parseInt(class_id));
-      paramIndex++;
+      // For class login, ignore external class_id filter to prevent cross-class access
+      if (req.user!.role !== 'class') {
+        whereClause += ` AND s.class_id = $${paramIndex}`;
+        params.push(parseInt(class_id));
+        paramIndex++;
+      }
     }
 
     if (status === 'active') {
@@ -105,6 +114,14 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response): Promis
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Student not found' });
       return;
+    }
+
+    // Class login: verify student belongs to this class
+    if (req.user!.role === 'class' && req.user!.classId) {
+      if (result.rows[0].class_id !== req.user!.classId) {
+        res.status(403).json({ error: 'Access denied: student not in your class' });
+        return;
+      }
     }
 
     res.json(result.rows[0]);

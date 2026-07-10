@@ -30,6 +30,7 @@ export default function Login() {
         const user = JSON.parse(stored);
         if (user.role === 'admin') navigate('/admin');
         else if (user.role === 'teacher') navigate('/teacher');
+        else if (user.role === 'class') navigate('/class');
         else navigate('/student');
       } else {
         navigate('/admin');

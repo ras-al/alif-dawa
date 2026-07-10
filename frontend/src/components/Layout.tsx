@@ -37,6 +37,15 @@ const teacherNavigation: NavItem[] = [
   { name: 'Notices', href: '/teacher/notices', icon: Bell },
 ];
 
+const classNavigation: NavItem[] = [
+  { name: 'Dashboard', href: '/class', icon: LayoutDashboard },
+  { name: 'Students', href: '/class/students', icon: Users },
+  { name: 'Enter Marks', href: '/class/marks', icon: FileText },
+  { name: 'Attendance', href: '/class/attendance', icon: ClipboardList },
+  { name: 'Leave Requests', href: '/class/leave', icon: Clock },
+  { name: 'Notices', href: '/class/notices', icon: Bell },
+];
+
 const studentNavigation: NavItem[] = [
   { name: 'Dashboard', href: '/student', icon: LayoutDashboard },
   { name: 'My Progress', href: '/student/progress', icon: FileText },
@@ -56,7 +65,9 @@ export default function Layout() {
     ? adminNavigation
     : user?.role === 'teacher'
       ? teacherNavigation
-      : studentNavigation;
+      : user?.role === 'class'
+        ? classNavigation
+        : studentNavigation;
 
   const handleLogout = async () => {
     await logout();
@@ -85,6 +96,15 @@ export default function Layout() {
     name: segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' '),
     href: '/' + pathSegments.slice(0, idx + 1).join('/'),
   }));
+
+  // Display name
+  const displayName = user?.role === 'class'
+    ? `Class ${user?.className || user?.profile?.name || user?.username}`
+    : user?.profile?.name || user?.username;
+
+  const displayRole = user?.role === 'class'
+    ? 'Class Login'
+    : user?.role;
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -131,8 +151,8 @@ export default function Layout() {
 
           <div className="border-t border-slate-200 p-3">
             <div className="px-3 py-2 mb-2">
-              <p className="text-sm font-medium text-slate-900">{user?.profile?.name || user?.username}</p>
-              <p className="text-xs text-slate-500 capitalize">{user?.role}</p>
+              <p className="text-sm font-medium text-slate-900">{displayName}</p>
+              <p className="text-xs text-slate-500 capitalize">{displayRole}</p>
             </div>
             <button
               onClick={handleLogout}

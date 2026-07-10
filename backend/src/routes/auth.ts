@@ -44,8 +44,29 @@ router.post('/login', async (req: AuthRequest, res: Response): Promise<void> => 
       return;
     }
 
+    // Build JWT payload
+    const tokenPayload: Record<string, unknown> = {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      roleId: user.role_id,
+    };
+
+    // If this is a class login, attach the class id
+    let classInfo = null;
+    if (user.role === 'class') {
+      const classResult = await pool.query(
+        'SELECT id, name FROM classes WHERE user_id = $1',
+        [user.id]
+      );
+      if (classResult.rows.length > 0) {
+        classInfo = classResult.rows[0];
+        tokenPayload.classId = classInfo.id;
+      }
+    }
+
     const accessToken = jwt.sign(
-      { id: user.id, username: user.username, role: user.role, roleId: user.role_id },
+      tokenPayload,
       process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: process.env.JWT_EXPIRY || '15m' } as SignOptions
     );
@@ -82,6 +103,8 @@ router.post('/login', async (req: AuthRequest, res: Response): Promise<void> => 
         [user.id]
       );
       if (studentResult.rows.length > 0) profile = studentResult.rows[0];
+    } else if (user.role === 'class' && classInfo) {
+      profile = { id: classInfo.id, name: classInfo.name };
     }
 
     res.json({
@@ -93,6 +116,7 @@ router.post('/login', async (req: AuthRequest, res: Response): Promise<void> => 
         role: user.role,
         roleId: user.role_id,
         profile,
+        ...(user.role === 'class' && classInfo ? { classId: classInfo.id, className: classInfo.name } : {}),
       },
     });
   } catch (err) {
@@ -139,8 +163,23 @@ router.post('/refresh', async (req: AuthRequest, res: Response): Promise<void> =
     }
 
     const user = userResult.rows[0];
+    const tokenPayload: Record<string, unknown> = {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      roleId: user.role_id,
+    };
+
+    // Re-attach classId for class role
+    if (user.role === 'class') {
+      const classResult = await pool.query('SELECT id FROM classes WHERE user_id = $1', [user.id]);
+      if (classResult.rows.length > 0) {
+        tokenPayload.classId = classResult.rows[0].id;
+      }
+    }
+
     const newAccessToken = jwt.sign(
-      { id: user.id, username: user.username, role: user.role, roleId: user.role_id },
+      tokenPayload,
       process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: process.env.JWT_EXPIRY || '15m' } as SignOptions
     );
@@ -180,6 +219,8 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response): Promise
 
     const user = result.rows[0];
     let profile = null;
+    let classId: number | undefined;
+    let className: string | undefined;
 
     if (user.role === 'teacher') {
       const t = await pool.query('SELECT id, name FROM teachers WHERE user_id = $1', [user.id]);
@@ -191,9 +232,23 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response): Promise
         [user.id]
       );
       if (s.rows.length > 0) profile = s.rows[0];
+    } else if (user.role === 'class') {
+      const c = await pool.query('SELECT id, name FROM classes WHERE user_id = $1', [user.id]);
+      if (c.rows.length > 0) {
+        profile = { id: c.rows[0].id, name: c.rows[0].name };
+        classId = c.rows[0].id;
+        className = c.rows[0].name;
+      }
     }
 
-    res.json({ id: user.id, username: user.username, role: user.role, roleId: user.role_id, profile });
+    res.json({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      roleId: user.role_id,
+      profile,
+      ...(classId ? { classId, className } : {}),
+    });
   } catch (err) {
     console.error('Me error:', err);
     res.status(500).json({ error: 'Internal server error' });

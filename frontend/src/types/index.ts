@@ -1,9 +1,11 @@
 export interface User {
   id: number;
   username: string;
-  role: 'admin' | 'teacher' | 'student';
+  role: 'admin' | 'teacher' | 'student' | 'class';
   roleId: number;
-  profile?: TeacherProfile | StudentProfile | null;
+  profile?: TeacherProfile | StudentProfile | ClassProfile | null;
+  classId?: number;
+  className?: string;
 }
 
 export interface TeacherProfile {
@@ -16,6 +18,11 @@ export interface StudentProfile {
   name: string;
   admission_number: string;
   class_name: string;
+}
+
+export interface ClassProfile {
+  id: number;
+  name: string;
 }
 
 export interface Student {
@@ -49,6 +56,9 @@ export interface ClassRecord {
   id: number;
   name: string;
   display_order: number;
+  user_id?: number | null;
+  login_username?: string;
+  login_active?: boolean;
   subjects?: Subject[];
 }
 
@@ -135,6 +145,15 @@ export interface DashboardStats {
   pendingLeaves: number;
 }
 
+export interface ClassDashboardStats {
+  className: string;
+  totalStudents: number;
+  subjects: Subject[];
+  teacherSubjects: { subject_id: number; teacher_id: number; teacher_name: string; subject_name: string }[];
+  todayAttendance: { present: number; absent: number; leave: number };
+  pendingLeaves: number;
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   total: number;
@@ -147,4 +166,5 @@ export interface ProgressCardData {
   student: Student;
   month: AcademicMonth & { year_name: string };
   marks: { marks: number | null; remarks: string | null; subject_name: string }[];
+  attendance?: { present: number; absent: number; leave: number };
 }

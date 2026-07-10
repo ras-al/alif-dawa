@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import type { ClassRecord, AttendanceRecord } from '../../types';
 
 export default function Attendance() {
+  const { user } = useAuth();
+  const isClassLogin = user?.role === 'class';
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -12,7 +15,14 @@ export default function Attendance() {
   const [saving, setSaving] = useState(false);
   const { addToast } = useToast();
 
-  useEffect(() => { api.get('/classes').then(r => setClasses(r.data)).catch(() => {}); }, []);
+  useEffect(() => {
+    if (isClassLogin && user?.classId) {
+      // Auto-select class for class login
+      setSelectedClass(user.classId.toString());
+    } else {
+      api.get('/classes').then(r => setClasses(r.data)).catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     if (!selectedClass || !selectedDate) return;
@@ -51,11 +61,14 @@ export default function Attendance() {
       <h1 className="text-xl font-semibold text-slate-900 mb-6">Attendance</h1>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
-          className="px-3 py-2 text-sm border border-slate-300 rounded-md bg-white">
-          <option value="">Select Class</option>
-          {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        {/* Hide class selector for class login */}
+        {!isClassLogin && (
+          <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
+            className="px-3 py-2 text-sm border border-slate-300 rounded-md bg-white">
+            <option value="">Select Class</option>
+            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
         <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
           className="px-3 py-2 text-sm border border-slate-300 rounded-md bg-white" />
         {records.length > 0 && (

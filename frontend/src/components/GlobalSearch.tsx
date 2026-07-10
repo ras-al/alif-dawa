@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, X } from 'lucide-react';
 import api from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SearchResult {
   id: number;
@@ -58,10 +59,13 @@ export default function GlobalSearch() {
     };
   }, [query]);
 
+  const { user } = useAuth();
+  const basePath = user?.role === 'class' ? '/class' : user?.role === 'teacher' ? '/teacher' : '/admin';
+
   const handleSelect = (type: string, _id: number) => {
     setIsOpen(false);
     setQuery('');
-    if (type === 'student') navigate(`/admin/students`);
+    if (type === 'student') navigate(`${basePath}/students`);
     else if (type === 'teacher') navigate(`/admin/teachers`);
     else if (type === 'class') navigate(`/admin/classes`);
   };

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Save, Printer } from 'lucide-react';
 import api from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import type { AcademicYear, AcademicMonth, ClassRecord, Subject } from '../../types';
 
@@ -14,6 +15,8 @@ interface StudentMarks {
 }
 
 export default function MarkEntry() {
+  const { user } = useAuth();
+  const isClassLogin = user?.role === 'class';
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [months, setMonths] = useState<AcademicMonth[]>([]);
   const [classes, setClasses] = useState<ClassRecord[]>([]);
@@ -35,6 +38,11 @@ export default function MarkEntry() {
         setClasses(c.data);
         const activeYear = y.data.find((yr: AcademicYear) => yr.is_active);
         if (activeYear) setSelectedYear(activeYear.id.toString());
+
+        // For class login, auto-select their class
+        if (isClassLogin && user?.classId) {
+          setSelectedClass(user.classId.toString());
+        }
       })
       .catch(() => addToast('Failed to load data', 'error'));
   }, []);
@@ -95,7 +103,14 @@ export default function MarkEntry() {
   };
 
   const openProgressCard = (studentId: number) => {
-    window.open(`/admin/progress-card/${studentId}/${selectedMonth}`, '_blank');
+    const basePath = isClassLogin ? '/class' : '/admin';
+    window.open(`${basePath}/progress-card/${studentId}/${selectedMonth}`, '_blank');
+  };
+
+  const openClassProgressCard = () => {
+    if (!selectedClass || !selectedMonth) return;
+    const basePath = isClassLogin ? '/class' : '/admin';
+    window.open(`${basePath}/progress-card-class/${selectedClass}/${selectedMonth}`, '_blank');
   };
 
   return (
@@ -114,11 +129,21 @@ export default function MarkEntry() {
           <option value="">Select Month</option>
           {months.map(m => <option key={m.id} value={m.id}>{m.name} {m.status === 'locked' ? '🔒' : ''}</option>)}
         </select>
-        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
-          className="px-3 py-2 text-sm border border-slate-300 rounded-md bg-white">
-          <option value="">Select Class</option>
-          {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        {/* Hide class selector for class login (auto-selected) */}
+        {!isClassLogin && (
+          <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
+            className="px-3 py-2 text-sm border border-slate-300 rounded-md bg-white">
+            <option value="">Select Class</option>
+            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+        
+        {selectedClass && selectedMonth && (
+          <button onClick={openClassProgressCard}
+            className="ml-auto flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#14532D] rounded-md hover:bg-[#166534]">
+            <Printer className="h-4 w-4" /> Print Class Report
+          </button>
+        )}
       </div>
 
       {currentMonthStatus === 'locked' && selectedMonth && (

@@ -11,7 +11,9 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
     let query = 'SELECT a.*, u.username as created_by_name FROM announcements a LEFT JOIN users u ON a.created_by = u.id WHERE a.is_active = true';
 
     if (req.user!.role !== 'admin') {
-      query += ` AND (a.target_role IS NULL OR a.target_role = '${req.user!.role}')`;
+      // Class role sees teacher-targeted and general announcements
+      const effectiveRole = req.user!.role === 'class' ? 'teacher' : req.user!.role;
+      query += ` AND (a.target_role IS NULL OR a.target_role = '${effectiveRole}')`;
     }
 
     query += ' ORDER BY a.created_at DESC';

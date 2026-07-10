@@ -15,6 +15,21 @@ router.post('/mark', authenticate, authorize('admin', 'teacher'), async (req: Au
     return;
   }
 
+  // Class login: verify all students belong to their class
+  if (req.user!.role === 'class' && req.user!.classId) {
+    const studentIds = records.map((r: any) => r.student_id);
+    if (studentIds.length > 0) {
+      const check = await pool.query(
+        'SELECT id FROM students WHERE id = ANY($1::int[]) AND class_id != $2',
+        [studentIds, req.user!.classId]
+      );
+      if (check.rows.length > 0) {
+        res.status(403).json({ error: 'Access denied: some students not in your class' });
+        return;
+      }
+    }
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -44,8 +59,19 @@ router.post('/mark', authenticate, authorize('admin', 'teacher'), async (req: Au
 router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const { date, class_id } = req.query as Record<string, string>;
 
-  if (!date || !class_id) {
-    res.status(400).json({ error: 'date and class_id are required' });
+  if (!date) {
+    res.status(400).json({ error: 'date is required' });
+    return;
+  }
+
+  // Determine effective class_id
+  let effectiveClassId = class_id;
+  if (req.user!.role === 'class' && req.user!.classId) {
+    effectiveClassId = req.user!.classId.toString();
+  }
+
+  if (!effectiveClassId) {
+    res.status(400).json({ error: 'class_id is required' });
     return;
   }
 
@@ -57,7 +83,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
        LEFT JOIN attendance a ON s.id = a.student_id AND a.date = $1
        WHERE s.class_id = $2 AND s.is_active = true
        ORDER BY s.name`,
-      [date, class_id]
+      [date, effectiveClassId]
     );
 
     res.json(result.rows);

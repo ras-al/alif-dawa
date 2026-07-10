@@ -50,3 +50,6 @@ Thumbs.db
 
 # Typescript
 *.tsbuildinfo
+
+backend/importData.ts
+*.xlsx 

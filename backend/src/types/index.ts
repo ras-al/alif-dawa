@@ -5,6 +5,7 @@ export interface AuthUser {
   username: string;
   role: string;
   roleId: number;
+  classId?: number;
 }
 
 export interface AuthRequest extends Request<Record<string, string>> {

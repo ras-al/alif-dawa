@@ -87,4 +87,76 @@ router.get('/teacher-stats', authenticate, authorize('teacher'), async (req: Aut
   }
 });
 
+// GET /api/dashboard/class-stats - Stats for class login
+router.get('/class-stats', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  if (req.user!.role !== 'class' || !req.user!.classId) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+
+  const classId = req.user!.classId;
+
+  try {
+    const students = await pool.query(
+      'SELECT COUNT(*) FROM students WHERE class_id = $1 AND is_active = true',
+      [classId]
+    );
+
+    const className = await pool.query('SELECT name FROM classes WHERE id = $1', [classId]);
+
+    // Get subjects for this class
+    const subjects = await pool.query(
+      `SELECT s.id, s.name FROM class_subjects cs
+       JOIN subjects s ON cs.subject_id = s.id
+       WHERE cs.class_id = $1 ORDER BY cs.display_order`,
+      [classId]
+    );
+
+    // Get teacher-subject assignments for this class
+    const teacherSubjects = await pool.query(
+      `SELECT cts.subject_id, t.id as teacher_id, t.name as teacher_name, s.name as subject_name
+       FROM class_teacher_subjects cts
+       JOIN teachers t ON cts.teacher_id = t.id
+       JOIN subjects s ON cts.subject_id = s.id
+       JOIN academic_years ay ON cts.academic_year_id = ay.id
+       WHERE cts.class_id = $1 AND ay.is_active = true AND t.is_active = true
+       ORDER BY s.name, t.name`,
+      [classId]
+    );
+
+    // Today's attendance summary
+    const today = new Date().toISOString().split('T')[0];
+    const todayAttendance = await pool.query(
+      `SELECT status, COUNT(*) as count FROM attendance a
+       JOIN students s ON a.student_id = s.id
+       WHERE s.class_id = $1 AND a.date = $2
+       GROUP BY status`,
+      [classId, today]
+    );
+    const attendanceSummary: Record<string, number> = { present: 0, absent: 0, leave: 0 };
+    todayAttendance.rows.forEach((row: { status: string; count: string }) => {
+      attendanceSummary[row.status] = parseInt(row.count);
+    });
+
+    const pendingLeaves = await pool.query(
+      `SELECT COUNT(*) FROM leave_requests lr
+       JOIN students s ON lr.student_id = s.id
+       WHERE s.class_id = $1 AND lr.status = 'pending'`,
+      [classId]
+    );
+
+    res.json({
+      className: className.rows[0]?.name || '',
+      totalStudents: parseInt(students.rows[0].count),
+      subjects: subjects.rows,
+      teacherSubjects: teacherSubjects.rows,
+      todayAttendance: attendanceSummary,
+      pendingLeaves: parseInt(pendingLeaves.rows[0].count),
+    });
+  } catch (err) {
+    console.error('Class stats error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

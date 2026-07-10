@@ -25,6 +25,9 @@ export default function ProgressCard() {
   const totalMarks = data.marks.reduce((sum, m) => sum + (m.marks || 0), 0);
   const totalSubjects = data.marks.length;
   const average = totalSubjects > 0 ? (totalMarks / totalSubjects).toFixed(1) : '0';
+  const totalAttendanceDays = data.attendance
+    ? data.attendance.present + data.attendance.absent + data.attendance.leave
+    : 0;
 
   return (
     <div>
@@ -66,6 +69,12 @@ export default function ProgressCard() {
             <span className="text-slate-500">Month:</span>
             <span className="ml-2 font-medium text-slate-900">{data.month.name} ({data.month.year_name})</span>
           </div>
+          {data.student.father_name && (
+            <div>
+              <span className="text-slate-500">Father/Guardian:</span>
+              <span className="ml-2 font-medium text-slate-900">{data.student.father_name}</span>
+            </div>
+          )}
         </div>
 
         {/* Marks Table */}
@@ -97,6 +106,35 @@ export default function ProgressCard() {
             </tr>
           </tbody>
         </table>
+
+        {/* Attendance Summary */}
+        {data.attendance && totalAttendanceDays > 0 && (
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-slate-900 mb-2">Attendance Summary</h3>
+            <table className="w-full border border-slate-800 text-sm">
+              <thead>
+                <tr className="bg-slate-100">
+                  <th className="border border-slate-800 px-4 py-2 text-center font-semibold text-slate-900">Total Days</th>
+                  <th className="border border-slate-800 px-4 py-2 text-center font-semibold text-slate-900">Present</th>
+                  <th className="border border-slate-800 px-4 py-2 text-center font-semibold text-slate-900">Absent</th>
+                  <th className="border border-slate-800 px-4 py-2 text-center font-semibold text-slate-900">Leave</th>
+                  <th className="border border-slate-800 px-4 py-2 text-center font-semibold text-slate-900">Attendance %</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="border border-slate-800 px-4 py-2 text-center font-medium">{totalAttendanceDays}</td>
+                  <td className="border border-slate-800 px-4 py-2 text-center font-medium text-green-700">{data.attendance.present}</td>
+                  <td className="border border-slate-800 px-4 py-2 text-center font-medium text-red-700">{data.attendance.absent}</td>
+                  <td className="border border-slate-800 px-4 py-2 text-center font-medium text-amber-700">{data.attendance.leave}</td>
+                  <td className="border border-slate-800 px-4 py-2 text-center font-medium">
+                    {totalAttendanceDays > 0 ? ((data.attendance.present / totalAttendanceDays) * 100).toFixed(1) : '0'}%
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Remarks */}
         <div className="mb-8">
