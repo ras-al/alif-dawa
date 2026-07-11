@@ -3,6 +3,7 @@ import { useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
+import PublicFeedback from './pages/PublicFeedback';
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -21,6 +22,7 @@ import Notices from './pages/admin/Notices';
 import Users from './pages/admin/Users';
 import AuditLogs from './pages/admin/AuditLogs';
 import Settings from './pages/admin/Settings';
+import AdminFeedback from './pages/admin/AdminFeedback';
 
 // Teacher pages
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
@@ -47,6 +49,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/feedback" element={<PublicFeedback />} />
 
       {/* Admin Routes */}
       <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
@@ -64,6 +67,7 @@ function App() {
           <Route path="/admin/users" element={<Users />} />
           <Route path="/admin/audit-logs" element={<AuditLogs />} />
           <Route path="/admin/settings" element={<Settings />} />
+          <Route path="/admin/feedback" element={<AdminFeedback />} />
         </Route>
       </Route>
 

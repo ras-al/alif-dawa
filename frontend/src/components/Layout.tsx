@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, BookOpen, UserCheck, Calendar, Bell, FileText,
-  Settings, LogOut, Menu, X, ChevronRight, ClipboardList, Shield, Clock
+  Settings, LogOut, Menu, X, ChevronRight, ClipboardList, Shield, Clock, MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import GlobalSearch from '../components/GlobalSearch';
@@ -26,6 +26,7 @@ const adminNavigation: NavItem[] = [
   { name: 'Notices', href: '/admin/notices', icon: Bell },
   { name: 'Users', href: '/admin/users', icon: Shield },
   { name: 'Audit Logs', href: '/admin/audit-logs', icon: FileText },
+  { name: 'Feedback', href: '/admin/feedback', icon: MessageSquare },
   { name: 'Settings', href: '/admin/settings', icon: Settings },
 ];
 
