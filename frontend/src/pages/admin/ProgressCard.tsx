@@ -22,7 +22,11 @@ export default function ProgressCard() {
   if (loading) return <div className="p-8 text-sm text-slate-500">Loading...</div>;
   if (!data) return <div className="p-8 text-sm text-red-600">Failed to load progress card</div>;
 
-  const totalMarks = data.marks.reduce((sum, m) => sum + (m.marks || 0), 0);
+  const totalMarks = data.marks.reduce((sum, m) => {
+    if (m.remarks === 'AB' || m.marks === null) return sum;
+    const val = typeof m.marks === 'string' ? parseFloat(m.marks) : m.marks;
+    return sum + (isNaN(val) ? 0 : val);
+  }, 0);
   const totalSubjects = data.marks.length;
   const average = totalSubjects > 0 ? (totalMarks / totalSubjects).toFixed(1) : '0';
   const totalAttendanceDays = data.attendance?.class_total_days || (data.attendance
@@ -92,7 +96,7 @@ export default function ProgressCard() {
                 <td className="border border-slate-800 px-4 py-2 text-slate-900">{idx + 1}</td>
                 <td className="border border-slate-800 px-4 py-2 text-slate-900">{mark.subject_name}</td>
                 <td className="border border-slate-800 px-4 py-2 text-center text-slate-900 font-medium">
-                  {mark.marks !== null ? mark.marks : '—'}
+                  {mark.remarks === 'AB' ? 'AB' : (mark.marks !== null ? mark.marks : '—')}
                 </td>
               </tr>
             ))}

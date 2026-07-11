@@ -248,26 +248,27 @@ router.get('/progress-card/:studentId/:monthId', authenticate, async (req: AuthR
       [req.params.studentId, req.params.monthId]
     );
 
-    // Get attendance summary for this student
-    const attendance = await pool.query(
-      `SELECT status, COUNT(*) as count FROM attendance
-       WHERE student_id = $1
-       GROUP BY status`,
-      [req.params.studentId]
+    // Get monthly attendance for this student
+    const attendanceResult = await pool.query(
+      `SELECT total_days, present_days FROM monthly_attendance
+       WHERE student_id = $1 AND academic_month_id = $2`,
+      [req.params.studentId, req.params.monthId]
     );
-    const attendanceSummary: Record<string, number> = { present: 0, absent: 0, leave: 0 };
-    attendance.rows.forEach((row: { status: string; count: string }) => {
-      attendanceSummary[row.status] = parseInt(row.count);
-    });
-    
-    const classTotalDaysResult = await pool.query(
-      `SELECT COUNT(DISTINCT a.date) as class_total_days 
-       FROM attendance a
-       JOIN students s ON a.student_id = s.id
-       WHERE s.class_id = $1`,
-      [student.rows[0].class_id]
-    );
-    attendanceSummary['class_total_days'] = parseInt(classTotalDaysResult.rows[0].class_total_days || '0');
+
+    let totalDays = 0;
+    let presentDays = 0;
+
+    if (attendanceResult.rows.length > 0) {
+      totalDays = attendanceResult.rows[0].total_days;
+      presentDays = attendanceResult.rows[0].present_days;
+    }
+
+    const attendanceSummary = {
+      present: presentDays,
+      absent: totalDays - presentDays,
+      leave: 0,
+      class_total_days: totalDays
+    };
 
     const settings = await pool.query("SELECT key, value FROM settings");
     const settingsMap: Record<string, string> = {};
@@ -351,7 +352,13 @@ router.get('/progress-card/class/:classId/:monthId', authenticate, async (req: A
 
     const studentIds = students.rows.map((s: any) => s.id);
     let marks: any[] = [];
-    let attendance: any[] = [];
+    
+    // Students structure to be mapped
+    const studentsMap = students.rows.map((s: any) => ({
+      ...s,
+      attendance: { present: 0, absent: 0, leave: 0, class_total_days: 0 },
+      attendancePercentage: 0
+    }));
 
     if (studentIds.length > 0) {
       const marksResult = await pool.query(
@@ -364,36 +371,36 @@ router.get('/progress-card/class/:classId/:monthId', authenticate, async (req: A
       );
       marks = marksResult.rows;
 
+      // Get monthly attendance for all students in the class
       const attendanceResult = await pool.query(
-        `SELECT student_id, status, COUNT(*) as count FROM attendance
-         WHERE student_id = ANY($1::int[])
-         GROUP BY student_id, status`,
-        [studentIds]
+        `SELECT student_id, total_days, present_days 
+         FROM monthly_attendance 
+         WHERE student_id = ANY($1::int[]) AND academic_month_id = $2`,
+        [studentIds, req.params.monthId]
       );
-      attendance = attendanceResult.rows;
+
+      attendanceResult.rows.forEach((row: any) => {
+        const student = studentsMap.find((s: any) => s.id === row.student_id);
+        if (student) {
+          student.attendance = {
+            present: row.present_days,
+            absent: row.total_days - row.present_days,
+            leave: 0,
+            class_total_days: row.total_days
+          };
+          student.attendancePercentage = row.total_days > 0 
+            ? Math.round((row.present_days / row.total_days) * 100) 
+            : 0;
+        }
+      });
     }
 
-    const classTotalDaysResult = await pool.query(
-      `SELECT COUNT(DISTINCT a.date) as class_total_days 
-       FROM attendance a
-       JOIN students s ON a.student_id = s.id
-       WHERE s.class_id = $1`,
-      [req.params.classId]
-    );
-    const classTotalDays = parseInt(classTotalDaysResult.rows[0].class_total_days || '0');
-
-    const studentsData = students.rows.map((student: any) => {
+    const studentsData = studentsMap.map((student: any) => {
       const studentMarks = marks.filter(m => m.student_id === student.id);
-      const studentAttendance = attendance.filter(a => a.student_id === student.id);
-      const attendanceSummary: Record<string, number> = { present: 0, absent: 0, leave: 0, class_total_days: classTotalDays };
-      studentAttendance.forEach(a => {
-        attendanceSummary[a.status] = parseInt(a.count);
-      });
-
       return {
         student,
         marks: studentMarks,
-        attendance: attendanceSummary
+        attendance: student.attendance
       };
     });
 

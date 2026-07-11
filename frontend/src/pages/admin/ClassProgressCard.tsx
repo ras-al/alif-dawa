@@ -68,7 +68,11 @@ export default function ClassProgressCard() {
           </thead>
           <tbody>
             {students.map((studentData: any, idx: number) => {
-              const totalMarks = studentData.marks.reduce((sum: number, m: any) => sum + (m.marks || 0), 0);
+              const totalMarks = studentData.marks.reduce((sum: number, m: any) => {
+                if (m.remarks === 'AB' || m.marks === null) return sum;
+                const val = typeof m.marks === 'string' ? parseFloat(m.marks) : m.marks;
+                return sum + (isNaN(val) ? 0 : val);
+              }, 0);
               const totalSubjects = subjects?.length || 0;
               const average = totalSubjects > 0 ? (totalMarks / totalSubjects).toFixed(1) : '0';
               
@@ -86,7 +90,7 @@ export default function ClassProgressCard() {
                     const markRec = studentData.marks.find((m: any) => m.subject_name === sub.name);
                     return (
                       <td key={sub.id} className="border border-slate-800 px-3 py-2 text-center text-slate-900">
-                        {markRec?.marks !== null && markRec?.marks !== undefined ? markRec.marks : '-'}
+                        {markRec?.remarks === 'AB' ? 'AB' : (markRec?.marks !== null && markRec?.marks !== undefined ? markRec.marks : '-')}
                       </td>
                     );
                   })}

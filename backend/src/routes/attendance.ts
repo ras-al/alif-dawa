@@ -154,4 +154,70 @@ router.get('/summary', authenticate, async (req: AuthRequest, res: Response): Pr
   }
 });
 
+// GET /api/attendance/monthly/:classId/:monthId
+router.get('/monthly/:classId/:monthId', authenticate, authorize('admin', 'class'), async (req: AuthRequest, res: Response): Promise<void> => {
+  const { classId, monthId } = req.params;
+
+  if (req.user!.role === 'class' && req.user!.classId !== parseInt(classId)) {
+    res.status(403).json({ error: 'Access denied: cannot view other class attendance' });
+    return;
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT s.id as student_id, s.name, s.admission_number,
+              ma.total_days, ma.present_days
+       FROM students s
+       LEFT JOIN monthly_attendance ma ON s.id = ma.student_id AND ma.academic_month_id = $1
+       WHERE s.class_id = $2 AND s.is_active = true
+       ORDER BY s.name`,
+      [monthId, classId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Get monthly attendance error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/attendance/monthly
+router.post('/monthly', authenticate, authorize('admin', 'class'), async (req: AuthRequest, res: Response): Promise<void> => {
+  const { class_id, academic_month_id, records } = req.body;
+  // records: [{ student_id, total_days, present_days }]
+
+  if (!class_id || !academic_month_id || !Array.isArray(records)) {
+    res.status(400).json({ error: 'class_id, academic_month_id, and records array are required' });
+    return;
+  }
+
+  if (req.user!.role === 'class' && req.user!.classId !== class_id) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    for (const record of records) {
+      await client.query(
+        `INSERT INTO monthly_attendance (student_id, academic_month_id, total_days, present_days)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (student_id, academic_month_id)
+         DO UPDATE SET total_days = $3, present_days = $4, updated_at = CURRENT_TIMESTAMP`,
+        [record.student_id, academic_month_id, record.total_days || 0, record.present_days || 0]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Monthly attendance saved' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Save monthly attendance error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+});
+
 export default router;

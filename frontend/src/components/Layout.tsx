@@ -21,6 +21,7 @@ const adminNavigation: NavItem[] = [
   { name: 'Academic Years', href: '/admin/academic-years', icon: Calendar },
   { name: 'Monthly Reports', href: '/admin/marks', icon: FileText },
   { name: 'Attendance', href: '/admin/attendance', icon: ClipboardList },
+  { name: 'Monthly Attendance', href: '/admin/monthly-attendance', icon: ClipboardList },
   { name: 'Leave Requests', href: '/admin/leave', icon: Clock },
   { name: 'Notices', href: '/admin/notices', icon: Bell },
   { name: 'Users', href: '/admin/users', icon: Shield },
@@ -41,6 +42,7 @@ const classNavigation: NavItem[] = [
   { name: 'Students', href: '/class/students', icon: Users },
   { name: 'Enter Marks', href: '/class/marks', icon: FileText },
   { name: 'Attendance', href: '/class/attendance', icon: ClipboardList },
+  { name: 'Monthly Attendance', href: '/class/monthly-attendance', icon: ClipboardList },
   { name: 'Leave Requests', href: '/class/leave', icon: Clock },
   { name: 'Notices', href: '/class/notices', icon: Bell },
 ];

@@ -14,6 +14,7 @@ import MarkEntry from './pages/admin/MarkEntry';
 import ProgressCard from './pages/admin/ProgressCard';
 import ClassProgressCard from './pages/admin/ClassProgressCard';
 import Attendance from './pages/admin/Attendance';
+import MonthlyAttendance from './pages/admin/MonthlyAttendance';
 import LeaveRequests from './pages/admin/LeaveRequests';
 import Notices from './pages/admin/Notices';
 import Users from './pages/admin/Users';
@@ -56,6 +57,7 @@ function App() {
           <Route path="/admin/academic-years" element={<AcademicYears />} />
           <Route path="/admin/marks" element={<MarkEntry />} />
           <Route path="/admin/attendance" element={<Attendance />} />
+          <Route path="/admin/monthly-attendance" element={<MonthlyAttendance />} />
           <Route path="/admin/leave" element={<LeaveRequests />} />
           <Route path="/admin/notices" element={<Notices />} />
           <Route path="/admin/users" element={<Users />} />
@@ -90,6 +92,7 @@ function App() {
           <Route path="/class/students" element={<ClassStudents />} />
           <Route path="/class/marks" element={<MarkEntry />} />
           <Route path="/class/attendance" element={<Attendance />} />
+          <Route path="/class/monthly-attendance" element={<MonthlyAttendance />} />
           <Route path="/class/leave" element={<LeaveRequests />} />
           <Route path="/class/notices" element={<Notices />} />
         </Route>

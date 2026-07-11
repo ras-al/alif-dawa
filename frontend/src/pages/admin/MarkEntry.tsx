@@ -25,7 +25,7 @@ export default function MarkEntry() {
   const [selectedClass, setSelectedClass] = useState('');
   const [students, setStudents] = useState<StudentMarks[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [editingMarks, setEditingMarks] = useState<Record<string, number | null>>({});
+  const [editingMarks, setEditingMarks] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [currentMonthStatus, setCurrentMonthStatus] = useState<string>('open');
@@ -67,11 +67,16 @@ export default function MarkEntry() {
       .then(res => {
         setStudents(res.data);
         // Initialize editing marks
-        const marks: Record<string, number | null> = {};
+        const marks: Record<string, string> = {};
         res.data.forEach((s: StudentMarks) => {
           (cls?.subjects || []).forEach((sub: Subject) => {
             const existing = s.marks.find((m: any) => m.subject_id === sub.id);
-            marks[`${s.id}-${sub.id}`] = existing?.marks ?? null;
+            if (existing) {
+              if (existing.remarks === 'AB') marks[`${s.id}-${sub.id}`] = 'AB';
+              else marks[`${s.id}-${sub.id}`] = existing.marks !== null ? existing.marks.toString() : '';
+            } else {
+              marks[`${s.id}-${sub.id}`] = '';
+            }
           });
         });
         setEditingMarks(marks);
@@ -81,15 +86,33 @@ export default function MarkEntry() {
   }, [selectedMonth, selectedClass]);
 
   const handleMarkChange = (studentId: number, subjectId: number, value: string) => {
-    const numValue = value === '' ? null : parseFloat(value);
-    setEditingMarks(prev => ({ ...prev, [`${studentId}-${subjectId}`]: numValue }));
+    const upperValue = value.toUpperCase();
+    if (upperValue === 'A' || upperValue === 'AB') {
+      setEditingMarks(prev => ({ ...prev, [`${studentId}-${subjectId}`]: upperValue }));
+      return;
+    }
+    setEditingMarks(prev => ({ ...prev, [`${studentId}-${subjectId}`]: value }));
   };
 
   const saveStudentMarks = async (studentId: number) => {
-    const marksToSave = subjects.map(sub => ({
-      subject_id: sub.id,
-      marks: editingMarks[`${studentId}-${sub.id}`],
-    }));
+    const marksToSave = subjects.map(sub => {
+      const val = editingMarks[`${studentId}-${sub.id}`];
+      let numVal = null;
+      let remarks = null;
+      
+      if (val === 'AB') {
+        remarks = 'AB';
+      } else if (val) {
+        numVal = parseFloat(val);
+        if (isNaN(numVal)) numVal = null;
+      }
+      
+      return {
+        subject_id: sub.id,
+        marks: numVal,
+        remarks: remarks,
+      };
+    });
 
     setSaving(true);
     try {
@@ -174,7 +197,9 @@ export default function MarkEntry() {
               {students.map(student => {
                 const total = subjects.reduce((sum, sub) => {
                   const val = editingMarks[`${student.id}-${sub.id}`];
-                  return sum + (val || 0);
+                  if (val === 'AB' || !val) return sum;
+                  const num = parseFloat(val);
+                  return sum + (isNaN(num) ? 0 : num);
                 }, 0);
 
                 return (
@@ -188,11 +213,8 @@ export default function MarkEntry() {
                     {subjects.map(sub => (
                       <td key={sub.id} className="px-1 py-1 text-center">
                         <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.5"
-                          value={editingMarks[`${student.id}-${sub.id}`] ?? ''}
+                          type="text"
+                          value={editingMarks[`${student.id}-${sub.id}`] || ''}
                           onChange={e => handleMarkChange(student.id, sub.id, e.target.value)}
                           disabled={currentMonthStatus === 'locked'}
                           className="w-16 px-2 py-1 text-center text-sm border border-slate-300 rounded disabled:bg-slate-50 disabled:text-slate-500
