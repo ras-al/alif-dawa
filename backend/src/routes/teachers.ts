@@ -27,8 +27,9 @@ router.get('/', authenticate, authorize('admin'), async (req: AuthRequest, res: 
     const total = parseInt(countResult.rows[0].count);
 
     const result = await pool.query(
-      `SELECT t.*
+      `SELECT t.*, u.username as login_username, u.is_active as login_active
        FROM teachers t
+       LEFT JOIN users u ON t.user_id = u.id
        ${whereClause}
        ORDER BY t.name ASC
        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
@@ -131,6 +132,67 @@ router.delete('/:id', authenticate, authorize('admin'), async (req: AuthRequest,
   } catch (err) {
     console.error('Delete teacher error:', err);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/teachers/:id/create-login
+router.post('/:id/create-login', authenticate, authorize('admin'), async (req: AuthRequest, res: Response): Promise<void> => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    res.status(400).json({ error: 'Username and password are required' });
+    return;
+  }
+  if (password.length < 6) {
+    res.status(400).json({ error: 'Password must be at least 6 characters' });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const teacherResult = await client.query('SELECT id, user_id, name FROM teachers WHERE id = $1', [req.params.id]);
+    if (teacherResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Teacher not found' });
+      return;
+    }
+
+    const teacher = teacherResult.rows[0];
+    const hash = await bcrypt.hash(password, 10);
+
+    if (teacher.user_id) {
+      // Update existing login
+      await client.query(
+        'UPDATE users SET username = $1, password_hash = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+        [username, hash, teacher.user_id]
+      );
+    } else {
+      // Create new login
+      let roleResult = await client.query("SELECT id FROM roles WHERE name = 'teacher'");
+      if (roleResult.rows.length === 0) {
+        roleResult = await client.query("INSERT INTO roles (name) VALUES ('teacher') RETURNING id");
+      }
+      const userResult = await client.query(
+        'INSERT INTO users (username, password_hash, role_id) VALUES ($1, $2, $3) RETURNING id',
+        [username, hash, roleResult.rows[0].id]
+      );
+      await client.query('UPDATE teachers SET user_id = $1 WHERE id = $2', [userResult.rows[0].id, req.params.id]);
+    }
+
+    await client.query('COMMIT');
+    await auditLog(req.user!.id, 'CREATE_TEACHER_LOGIN', 'teacher', parseInt(req.params.id), { username, teacherName: teacher.name }, getClientIp(req));
+    res.json({ message: 'Teacher login created/updated successfully' });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505') {
+      res.status(409).json({ error: 'Username already exists' });
+      return;
+    }
+    console.error('Create teacher login error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 });
 

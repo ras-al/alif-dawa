@@ -32,7 +32,6 @@ const teacherNavigation: NavItem[] = [
   { name: 'Dashboard', href: '/teacher', icon: LayoutDashboard },
   { name: 'My Students', href: '/teacher/students', icon: Users },
   { name: 'Enter Marks', href: '/teacher/marks', icon: FileText },
-  { name: 'Attendance', href: '/teacher/attendance', icon: ClipboardList },
   { name: 'Leave Requests', href: '/teacher/leave', icon: Clock },
   { name: 'Notices', href: '/teacher/notices', icon: Bell },
 ];

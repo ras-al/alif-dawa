@@ -39,9 +39,11 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
         return;
       }
       const assignedClasses = await pool.query(
-        `SELECT class_id FROM teacher_classes tc
-         JOIN academic_years ay ON tc.academic_year_id = ay.id
-         WHERE tc.teacher_id = $1 AND ay.is_active = true`,
+        `SELECT class_id FROM class_teacher_subjects cts
+         JOIN academic_years ay ON cts.academic_year_id = ay.id
+         WHERE cts.teacher_id = $1 AND ay.is_active = true
+         UNION
+         SELECT id as class_id FROM classes WHERE charge_teacher_id = $1`,
         [teacherResult.rows[0].id]
       );
       const classIds = assignedClasses.rows.map((r: { class_id: number }) => r.class_id);
@@ -143,9 +145,11 @@ router.post('/', authenticate, authorize('admin', 'teacher'), async (req: AuthRe
     }
 
     const hasAccess = await pool.query(
-      `SELECT 1 FROM teacher_classes tc
-       JOIN academic_years ay ON tc.academic_year_id = ay.id
-       WHERE tc.teacher_id = $1 AND tc.class_id = $2 AND ay.is_active = true`,
+      `SELECT 1 FROM class_teacher_subjects cts
+       JOIN academic_years ay ON cts.academic_year_id = ay.id
+       WHERE cts.teacher_id = $1 AND cts.class_id = $2 AND ay.is_active = true
+       UNION
+       SELECT 1 FROM classes WHERE id = $2 AND charge_teacher_id = $1`,
       [teacherResult.rows[0].id, studentClass.rows[0].class_id]
     );
 
@@ -202,6 +206,24 @@ router.get('/progress-card/:studentId/:monthId', authenticate, async (req: AuthR
     if (req.user!.role === 'class' && req.user!.classId) {
       if (student.rows[0].class_id !== req.user!.classId) {
         res.status(403).json({ error: 'Access denied: student not in your class' });
+        return;
+      }
+    } else if (req.user!.role === 'teacher') {
+      const teacherResult = await pool.query('SELECT id FROM teachers WHERE user_id = $1', [req.user!.id]);
+      if (teacherResult.rows.length === 0) {
+        res.status(403).json({ error: 'Teacher profile not found' });
+        return;
+      }
+      const hasAccess = await pool.query(
+        `SELECT 1 FROM class_teacher_subjects cts
+         JOIN academic_years ay ON cts.academic_year_id = ay.id
+         WHERE cts.teacher_id = $1 AND cts.class_id = $2 AND ay.is_active = true
+         UNION
+         SELECT 1 FROM classes WHERE id = $2 AND charge_teacher_id = $1`,
+        [teacherResult.rows[0].id, student.rows[0].class_id]
+      );
+      if (hasAccess.rows.length === 0) {
+        res.status(403).json({ error: 'Access denied: student not in your assigned classes' });
         return;
       }
     }
@@ -273,6 +295,24 @@ router.get('/progress-card/class/:classId/:monthId', authenticate, async (req: A
     if (req.user!.role === 'class' && req.user!.classId) {
       if (parseInt(req.params.classId) !== req.user!.classId) {
         res.status(403).json({ error: 'Access denied: cannot view other class progress cards' });
+        return;
+      }
+    } else if (req.user!.role === 'teacher') {
+      const teacherResult = await pool.query('SELECT id FROM teachers WHERE user_id = $1', [req.user!.id]);
+      if (teacherResult.rows.length === 0) {
+        res.status(403).json({ error: 'Teacher profile not found' });
+        return;
+      }
+      const hasAccess = await pool.query(
+        `SELECT 1 FROM class_teacher_subjects cts
+         JOIN academic_years ay ON cts.academic_year_id = ay.id
+         WHERE cts.teacher_id = $1 AND cts.class_id = $2 AND ay.is_active = true
+         UNION
+         SELECT 1 FROM classes WHERE id = $2 AND charge_teacher_id = $1`,
+        [teacherResult.rows[0].id, req.params.classId]
+      );
+      if (hasAccess.rows.length === 0) {
+        res.status(403).json({ error: 'Access denied: you do not have access to this class' });
         return;
       }
     }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Key, UserCheck } from 'lucide-react';
+import { Plus, Trash2, Key, UserCheck, Star } from 'lucide-react';
 import api from '../../api/client';
 import Modal from '../../components/Modal';
 import { useToast } from '../../contexts/ToastContext';
@@ -14,6 +14,7 @@ export default function Classes() {
   const [editingSubjects, setEditingSubjects] = useState<ClassRecord | null>(null);
   const [loginTarget, setLoginTarget] = useState<ClassRecord | null>(null);
   const [teacherSubjectTarget, setTeacherSubjectTarget] = useState<ClassRecord | null>(null);
+  const [chargeTeacherTarget, setChargeTeacherTarget] = useState<ClassRecord | null>(null);
   const [newClassName, setNewClassName] = useState('');
   const [newSubjectName, setNewSubjectName] = useState('');
   const { addToast } = useToast();
@@ -109,8 +110,17 @@ export default function Classes() {
                             {c.login_username}
                           </span>
                         )}
+                        {c.charge_teacher_name && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                            <Star className="h-3 w-3" />
+                            {c.charge_teacher_name} (Charge)
+                          </span>
+                        )}
                       </div>
                       <div className="flex gap-1">
+                        <button onClick={() => setChargeTeacherTarget(c)} className="p-1.5 text-slate-400 hover:text-amber-500 rounded" title="Assign Charge Usthad">
+                          <Star className="h-3.5 w-3.5" />
+                        </button>
                         <button onClick={() => setLoginTarget(c)} className="p-1.5 text-slate-400 hover:text-[#14532D] rounded" title="Manage Login">
                           <Key className="h-3.5 w-3.5" />
                         </button>
@@ -189,6 +199,9 @@ export default function Classes() {
 
       {/* Teacher-Subject Assignment Modal */}
       <TeacherSubjectModal cls={teacherSubjectTarget} onClose={() => { setTeacherSubjectTarget(null); fetchData(); }} />
+
+      {/* Charge Teacher Modal */}
+      <ChargeTeacherModal cls={chargeTeacherTarget} onClose={() => { setChargeTeacherTarget(null); fetchData(); }} />
     </div>
   );
 }
@@ -390,6 +403,65 @@ function TeacherSubjectModal({ cls, onClose }: { cls: ClassRecord | null; onClos
           </div>
         </div>
       )}
+    </Modal>
+  );
+}
+
+function ChargeTeacherModal({ cls, onClose }: { cls: ClassRecord | null; onClose: () => void }) {
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [selectedId, setSelectedId] = useState<number | ''>('');
+  const [saving, setSaving] = useState(false);
+  const { addToast } = useToast();
+
+  useEffect(() => {
+    if (cls) {
+      setSelectedId(cls.charge_teacher_id || '');
+      api.get('/teachers', { params: { limit: 100 } }).then(res => {
+        setTeachers(res.data.data || res.data);
+      }).catch(() => addToast('Failed to load teachers', 'error'));
+    }
+  }, [cls, addToast]);
+
+  if (!cls) return null;
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.put(`/classes/${cls.id}/charge-teacher`, { charge_teacher_id: selectedId ? parseInt(selectedId.toString()) : null });
+      addToast('Class Charge Usthad updated', 'success');
+      onClose();
+    } catch {
+      addToast('Failed to update Charge Usthad', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title={`Assign Charge Usthad - ${cls.name}`} size="sm">
+      <form onSubmit={handleSave} className="space-y-4">
+        <p className="text-sm text-slate-600">Select the teacher in charge of this class.</p>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Teacher</label>
+          <select
+            value={selectedId}
+            onChange={e => setSelectedId(e.target.value ? parseInt(e.target.value) : '')}
+            className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#14532D] focus:border-[#14532D]"
+          >
+            <option value="">— None —</option>
+            {teachers.filter(t => t.is_active).map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
+          <button type="submit" disabled={saving} className="px-3 py-1.5 text-sm text-white bg-[#14532D] rounded-md hover:bg-[#166534] disabled:opacity-50">
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </form>
     </Modal>
   );
 }

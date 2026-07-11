@@ -6,7 +6,7 @@ import { authenticate, authorize } from '../middleware/auth';
 const router = Router();
 
 // POST /api/attendance/mark
-router.post('/mark', authenticate, authorize('admin', 'teacher'), async (req: AuthRequest, res: Response): Promise<void> => {
+router.post('/mark', authenticate, authorize('admin', 'class'), async (req: AuthRequest, res: Response): Promise<void> => {
   const { date, records } = req.body;
   // records: [{ student_id, status }]
 
@@ -73,6 +73,26 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
   if (!effectiveClassId) {
     res.status(400).json({ error: 'class_id is required' });
     return;
+  }
+
+  if (req.user!.role === 'teacher') {
+    const teacherResult = await pool.query('SELECT id FROM teachers WHERE user_id = $1', [req.user!.id]);
+    if (teacherResult.rows.length === 0) {
+      res.json([]);
+      return;
+    }
+    const hasAccess = await pool.query(
+      `SELECT 1 FROM class_teacher_subjects cts
+       JOIN academic_years ay ON cts.academic_year_id = ay.id
+       WHERE cts.teacher_id = $1 AND cts.class_id = $2 AND ay.is_active = true
+       UNION
+       SELECT 1 FROM classes WHERE id = $2 AND charge_teacher_id = $1`,
+      [teacherResult.rows[0].id, effectiveClassId]
+    );
+    if (hasAccess.rows.length === 0) {
+      res.status(403).json({ error: 'Access denied: you are not assigned to this class' });
+      return;
+    }
   }
 
   try {

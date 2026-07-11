@@ -33,10 +33,20 @@ export default function ClassDashboard() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-900 mb-1">
-        Class {stats?.className || user?.className || user?.profile?.name || user?.username}
-      </h1>
-      <p className="text-sm text-slate-500 mb-6">Class Dashboard</p>
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold text-slate-900 mb-1">
+          Class {stats?.className || user?.className || user?.profile?.name || user?.username}
+        </h1>
+        <div className="flex items-center gap-4 text-sm text-slate-500">
+          <p>Class Dashboard</p>
+          {stats?.chargeTeacher && (
+            <p className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+              <UserCheck className="h-3.5 w-3.5" />
+              Charge Usthad: {stats.chargeTeacher}
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

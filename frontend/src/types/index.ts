@@ -48,6 +48,8 @@ export interface Teacher {
   email: string | null;
   is_active: boolean;
   username?: string;
+  login_username?: string;
+  login_active?: boolean;
   assigned_classes?: string[];
   classes?: { class_id: number; class_name: string; year_name: string }[];
 }
@@ -57,6 +59,8 @@ export interface ClassRecord {
   name: string;
   display_order: number;
   user_id?: number | null;
+  charge_teacher_id?: number | null;
+  charge_teacher_name?: string;
   login_username?: string;
   login_active?: boolean;
   subjects?: Subject[];
@@ -147,6 +151,7 @@ export interface DashboardStats {
 
 export interface ClassDashboardStats {
   className: string;
+  chargeTeacher?: string | null;
   totalStudents: number;
   subjects: Subject[];
   teacherSubjects: { subject_id: number; teacher_id: number; teacher_name: string; subject_name: string }[];

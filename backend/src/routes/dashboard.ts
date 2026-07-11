@@ -53,23 +53,41 @@ router.get('/teacher-stats', authenticate, authorize('teacher'), async (req: Aut
 
     const teacherId = teacherResult.rows[0].id;
 
-    const assignedClasses = await pool.query(
-      `SELECT COUNT(DISTINCT tc.class_id) FROM teacher_classes tc
-       JOIN academic_years ay ON tc.academic_year_id = ay.id
-       WHERE tc.teacher_id = $1 AND ay.is_active = true`,
+    const assignedClassesResult = await pool.query(
+      `SELECT class_id FROM class_teacher_subjects cts
+       JOIN academic_years ay ON cts.academic_year_id = ay.id
+       WHERE cts.teacher_id = $1 AND ay.is_active = true
+       UNION
+       SELECT id as class_id FROM classes WHERE charge_teacher_id = $1`,
+      [teacherId]
+    );
+    const assignedClassesCount = assignedClassesResult.rows.length;
+
+    const classIdsRows = assignedClassesResult.rows;
+
+    const classesAndSubjects = await pool.query(
+      `SELECT c.id as class_id, c.name as class_name, s.id as subject_id, s.name as subject_name
+       FROM class_teacher_subjects cts
+       JOIN classes c ON cts.class_id = c.id
+       JOIN subjects s ON cts.subject_id = s.id
+       JOIN academic_years ay ON cts.academic_year_id = ay.id
+       WHERE cts.teacher_id = $1 AND ay.is_active = true
+       ORDER BY c.display_order, s.name`,
       [teacherId]
     );
 
-    const classIds = await pool.query(
-      `SELECT tc.class_id FROM teacher_classes tc
-       JOIN academic_years ay ON tc.academic_year_id = ay.id
-       WHERE tc.teacher_id = $1 AND ay.is_active = true`,
+    // Also get classes where they are charge teacher to ensure they are listed
+    const chargeClasses = await pool.query(
+      `SELECT id as class_id, name as class_name
+       FROM classes
+       WHERE charge_teacher_id = $1
+       ORDER BY display_order`,
       [teacherId]
     );
 
     let totalStudents = 0;
-    if (classIds.rows.length > 0) {
-      const ids = classIds.rows.map((r: { class_id: number }) => r.class_id);
+    if (classIdsRows.length > 0) {
+      const ids = classIdsRows.map((r: { class_id: number }) => r.class_id);
       const students = await pool.query(
         'SELECT COUNT(*) FROM students WHERE class_id = ANY($1::int[]) AND is_active = true',
         [ids]
@@ -77,9 +95,29 @@ router.get('/teacher-stats', authenticate, authorize('teacher'), async (req: Aut
       totalStudents = parseInt(students.rows[0].count);
     }
 
+    const assignedClassesData = classesAndSubjects.rows.reduce((acc: any, row: any) => {
+      let cls = acc.find((c: any) => c.class_id === row.class_id);
+      if (!cls) {
+        cls = { class_id: row.class_id, class_name: row.class_name, subjects: [] };
+        acc.push(cls);
+      }
+      if (row.subject_id) {
+        cls.subjects.push({ subject_id: row.subject_id, subject_name: row.subject_name });
+      }
+      return acc;
+    }, []);
+
+    chargeClasses.rows.forEach((row: any) => {
+      let cls = assignedClassesData.find((c: any) => c.class_id === row.class_id);
+      if (!cls) {
+        assignedClassesData.push({ class_id: row.class_id, class_name: row.class_name, subjects: [] });
+      }
+    });
+
     res.json({
-      assignedClasses: parseInt(assignedClasses.rows[0].count),
+      assignedClasses: assignedClassesCount,
       totalStudents,
+      classes: assignedClassesData
     });
   } catch (err) {
     console.error('Teacher stats error:', err);
@@ -102,7 +140,12 @@ router.get('/class-stats', authenticate, async (req: AuthRequest, res: Response)
       [classId]
     );
 
-    const className = await pool.query('SELECT name FROM classes WHERE id = $1', [classId]);
+    const classData = await pool.query(`
+      SELECT c.name, t.name as charge_teacher_name 
+      FROM classes c
+      LEFT JOIN teachers t ON c.charge_teacher_id = t.id
+      WHERE c.id = $1
+    `, [classId]);
 
     // Get subjects for this class
     const subjects = await pool.query(
@@ -146,7 +189,8 @@ router.get('/class-stats', authenticate, async (req: AuthRequest, res: Response)
     );
 
     res.json({
-      className: className.rows[0]?.name || '',
+      className: classData.rows[0]?.name || '',
+      chargeTeacher: classData.rows[0]?.charge_teacher_name || null,
       totalStudents: parseInt(students.rows[0].count),
       subjects: subjects.rows,
       teacherSubjects: teacherSubjects.rows,

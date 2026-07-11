@@ -10,18 +10,56 @@ const router = Router();
 // GET /api/classes
 router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const result = await pool.query('SELECT * FROM classes ORDER BY display_order, name');
+    let classesQuery = `
+      SELECT c.*, t.name as charge_teacher_name 
+      FROM classes c
+      LEFT JOIN teachers t ON c.charge_teacher_id = t.id
+    `;
+    let queryParams: any[] = [];
+    let teacherId: number | null = null;
+
+    if (req.user!.role === 'class' && req.user!.classId) {
+      classesQuery += ` WHERE c.id = $1`;
+      queryParams.push(req.user!.classId);
+    } else if (req.user!.role === 'teacher') {
+      const teacherResult = await pool.query('SELECT id FROM teachers WHERE user_id = $1', [req.user!.id]);
+      if (teacherResult.rows.length === 0) {
+        res.json([]);
+        return;
+      }
+      teacherId = teacherResult.rows[0].id;
+      classesQuery += ` 
+        WHERE c.id IN (
+          SELECT class_id FROM class_teacher_subjects cts JOIN academic_years ay ON cts.academic_year_id = ay.id WHERE cts.teacher_id = $1 AND ay.is_active = true
+        ) OR c.charge_teacher_id = $1
+      `;
+      queryParams.push(teacherId);
+    }
+    
+    classesQuery += ` ORDER BY c.display_order, c.name`;
+
+    const result = await pool.query(classesQuery, queryParams);
 
     // Attach subjects for each class
     for (const cls of result.rows) {
-      const subjects = await pool.query(
-        `SELECT s.id, s.name, cs.display_order
+      let subjectsQuery = `
+         SELECT s.id, s.name, cs.display_order
          FROM class_subjects cs
          JOIN subjects s ON cs.subject_id = s.id
          WHERE cs.class_id = $1
-         ORDER BY cs.display_order`,
-        [cls.id]
-      );
+      `;
+      let subParams: any[] = [cls.id];
+
+      if (req.user!.role === 'teacher' && teacherId) {
+        subjectsQuery += ` AND s.id IN (
+          SELECT subject_id FROM class_teacher_subjects cts JOIN academic_years ay ON cts.academic_year_id = ay.id WHERE cts.teacher_id = $2 AND cts.class_id = $1 AND ay.is_active = true
+        )`;
+        subParams.push(teacherId);
+      }
+      
+      subjectsQuery += ` ORDER BY cs.display_order`;
+
+      const subjects = await pool.query(subjectsQuery, subParams);
       cls.subjects = subjects.rows;
 
       // Check if class has a login account
@@ -109,6 +147,19 @@ router.put('/:id', authenticate, authorize('admin'), async (req: AuthRequest, re
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Update class error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/classes/:id/charge-teacher
+router.put('/:id/charge-teacher', authenticate, authorize('admin'), async (req: AuthRequest, res: Response): Promise<void> => {
+  const { charge_teacher_id } = req.body;
+  try {
+    await pool.query('UPDATE classes SET charge_teacher_id = $1 WHERE id = $2', [charge_teacher_id || null, req.params.id]);
+    await auditLog(req.user!.id, 'UPDATE_CHARGE_TEACHER', 'class', parseInt(req.params.id), { charge_teacher_id }, getClientIp(req));
+    res.json({ message: 'Charge teacher updated' });
+  } catch (err) {
+    console.error('Update charge teacher error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

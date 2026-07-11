@@ -35,9 +35,11 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
       }
       const teacherId = teacherResult.rows[0].id;
       const assignedClasses = await pool.query(
-        `SELECT class_id FROM teacher_classes tc
-         JOIN academic_years ay ON tc.academic_year_id = ay.id
-         WHERE tc.teacher_id = $1 AND ay.is_active = true`,
+        `SELECT class_id FROM class_teacher_subjects cts
+         JOIN academic_years ay ON cts.academic_year_id = ay.id
+         WHERE cts.teacher_id = $1 AND ay.is_active = true
+         UNION
+         SELECT id as class_id FROM classes WHERE charge_teacher_id = $1`,
         [teacherId]
       );
       const classIds = assignedClasses.rows.map((r: { class_id: number }) => r.class_id);
