@@ -13,6 +13,7 @@ import AcademicYears from './pages/admin/AcademicYears';
 import MarkEntry from './pages/admin/MarkEntry';
 import ProgressCard from './pages/admin/ProgressCard';
 import ClassProgressCard from './pages/admin/ClassProgressCard';
+import ProgressCardAll from './pages/admin/ProgressCardAll';
 import Attendance from './pages/admin/Attendance';
 import MonthlyAttendance from './pages/admin/MonthlyAttendance';
 import LeaveRequests from './pages/admin/LeaveRequests';
@@ -68,10 +69,12 @@ function App() {
 
       {/* Progress Card - printable standalone page */}
       <Route element={<ProtectedRoute allowedRoles={['admin', 'teacher', 'class']} />}>
-        <Route path="/admin/progress-card/:studentId/:monthId" element={<ProgressCard />} />
-        <Route path="/admin/progress-card-class/:classId/:monthId" element={<ClassProgressCard />} />
-        <Route path="/class/progress-card/:studentId/:monthId" element={<ProgressCard />} />
-        <Route path="/class/progress-card-class/:classId/:monthId" element={<ClassProgressCard />} />
+          <Route path="/admin/progress-card/:studentId/:monthId" element={<ProgressCard />} />
+          <Route path="/admin/progress-card-class/:classId/:monthId" element={<ClassProgressCard />} />
+          <Route path="/admin/progress-card-all/:classId/:monthId" element={<ProgressCardAll />} />
+          <Route path="/class/progress-card/:studentId/:monthId" element={<ProgressCard />} />
+          <Route path="/class/progress-card-class/:classId/:monthId" element={<ClassProgressCard />} />
+          <Route path="/class/progress-card-all/:classId/:monthId" element={<ProgressCardAll />} />
       </Route>
 
       {/* Teacher Routes */}

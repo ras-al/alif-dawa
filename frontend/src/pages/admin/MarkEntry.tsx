@@ -136,6 +136,12 @@ export default function MarkEntry() {
     window.open(`${basePath}/progress-card-class/${selectedClass}/${selectedMonth}`, '_blank');
   };
 
+  const openAllProgressCards = () => {
+    if (!selectedClass || !selectedMonth) return;
+    const basePath = isClassLogin ? '/class' : '/admin';
+    window.open(`${basePath}/progress-card-all/${selectedClass}/${selectedMonth}`, '_blank');
+  };
+
   return (
     <div>
       <h1 className="text-xl font-semibold text-slate-900 mb-6">Monthly Mark Entry</h1>
@@ -162,10 +168,16 @@ export default function MarkEntry() {
         )}
         
         {selectedClass && selectedMonth && (
-          <button onClick={openClassProgressCard}
-            className="ml-auto flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#14532D] rounded-md hover:bg-[#166534]">
-            <Printer className="h-4 w-4" /> Print Class Report
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button onClick={openClassProgressCard}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-slate-700 rounded-md hover:bg-slate-800 transition-colors">
+              <Printer className="h-4 w-4" /> Class Report
+            </button>
+            <button onClick={openAllProgressCards}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#14532D] rounded-md hover:bg-[#166534] transition-colors">
+              <Printer className="h-4 w-4" /> Print All
+            </button>
+          </div>
         )}
       </div>
 
