@@ -166,5 +166,5 @@ export interface ProgressCardData {
   student: Student;
   month: AcademicMonth & { year_name: string };
   marks: { marks: number | null; remarks: string | null; subject_name: string }[];
-  attendance?: { present: number; absent: number; leave: number };
+  attendance?: { present: number; absent: number; leave: number; class_total_days?: number };
 }

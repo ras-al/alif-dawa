@@ -25,9 +25,9 @@ export default function ProgressCard() {
   const totalMarks = data.marks.reduce((sum, m) => sum + (m.marks || 0), 0);
   const totalSubjects = data.marks.length;
   const average = totalSubjects > 0 ? (totalMarks / totalSubjects).toFixed(1) : '0';
-  const totalAttendanceDays = data.attendance
+  const totalAttendanceDays = data.attendance?.class_total_days || (data.attendance
     ? data.attendance.present + data.attendance.absent + data.attendance.leave
-    : 0;
+    : 0);
 
   return (
     <div>
@@ -108,7 +108,7 @@ export default function ProgressCard() {
         </table>
 
         {/* Attendance Summary */}
-        {data.attendance && totalAttendanceDays > 0 && (
+        {data.attendance && (
           <div className="mb-6">
             <h3 className="text-sm font-semibold text-slate-900 mb-2">Attendance Summary</h3>
             <table className="w-full border border-slate-800 text-sm">

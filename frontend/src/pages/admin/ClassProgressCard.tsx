@@ -73,7 +73,7 @@ export default function ClassProgressCard() {
               const average = totalSubjects > 0 ? (totalMarks / totalSubjects).toFixed(1) : '0';
               
               const att = studentData.attendance;
-              const totalDays = att ? att.present + att.absent + att.leave : 0;
+              const totalDays = att?.class_total_days || (att ? att.present + att.absent + att.leave : 0);
               const attPercent = totalDays > 0 ? ((att.present / totalDays) * 100).toFixed(0) + '%' : '-';
 
               return (

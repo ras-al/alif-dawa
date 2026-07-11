@@ -153,4 +153,59 @@ router.put('/months/:monthId/lock', authenticate, authorize('admin'), async (req
   }
 });
 
+// DELETE /api/academic-years/:id
+router.delete('/:id', authenticate, authorize('admin'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query('DELETE FROM academic_years WHERE id = $1 RETURNING id, name', [req.params.id]);
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Academic year not found' });
+      return;
+    }
+    await auditLog(req.user!.id, 'DELETE', 'academic_year', parseInt(req.params.id), { name: result.rows[0].name }, getClientIp(req));
+    res.json({ message: 'Academic year deleted' });
+  } catch (err) {
+    console.error('Delete academic year error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/academic-years/months/:monthId
+router.put('/months/:monthId', authenticate, authorize('admin'), async (req: AuthRequest, res: Response): Promise<void> => {
+  const { name, month_number } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE academic_months SET name = COALESCE($1, name), month_number = COALESCE($2, month_number) WHERE id = $3 RETURNING *',
+      [name, month_number, req.params.monthId]
+    );
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Academic month not found' });
+      return;
+    }
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    if (err.code === '23505') {
+      res.status(409).json({ error: 'Month number already exists for this year' });
+      return;
+    }
+    console.error('Update academic month error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/academic-years/months/:monthId
+router.delete('/months/:monthId', authenticate, authorize('admin'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query('DELETE FROM academic_months WHERE id = $1 RETURNING id, name, academic_year_id', [req.params.monthId]);
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Academic month not found' });
+      return;
+    }
+    await auditLog(req.user!.id, 'DELETE', 'academic_month', parseInt(req.params.monthId), { name: result.rows[0].name }, getClientIp(req));
+    res.json({ message: 'Academic month deleted' });
+  } catch (err) {
+    console.error('Delete academic month error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

@@ -289,7 +289,6 @@ function StudentFormModal({ isOpen, onClose, student, classes, onSuccess }: {
             <label className="block text-sm font-medium text-slate-700 mb-1">Admission Number *</label>
             <input
               required
-              disabled={!!student}
               value={form.admission_number}
               onChange={(e) => setForm({ ...form, admission_number: e.target.value })}
               className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm disabled:bg-slate-50 disabled:text-slate-500

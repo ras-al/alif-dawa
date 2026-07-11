@@ -237,6 +237,15 @@ router.get('/progress-card/:studentId/:monthId', authenticate, async (req: AuthR
     attendance.rows.forEach((row: { status: string; count: string }) => {
       attendanceSummary[row.status] = parseInt(row.count);
     });
+    
+    const classTotalDaysResult = await pool.query(
+      `SELECT COUNT(DISTINCT a.date) as class_total_days 
+       FROM attendance a
+       JOIN students s ON a.student_id = s.id
+       WHERE s.class_id = $1`,
+      [student.rows[0].class_id]
+    );
+    attendanceSummary['class_total_days'] = parseInt(classTotalDaysResult.rows[0].class_total_days || '0');
 
     const settings = await pool.query("SELECT key, value FROM settings");
     const settingsMap: Record<string, string> = {};
@@ -324,10 +333,19 @@ router.get('/progress-card/class/:classId/:monthId', authenticate, async (req: A
       attendance = attendanceResult.rows;
     }
 
+    const classTotalDaysResult = await pool.query(
+      `SELECT COUNT(DISTINCT a.date) as class_total_days 
+       FROM attendance a
+       JOIN students s ON a.student_id = s.id
+       WHERE s.class_id = $1`,
+      [req.params.classId]
+    );
+    const classTotalDays = parseInt(classTotalDaysResult.rows[0].class_total_days || '0');
+
     const studentsData = students.rows.map((student: any) => {
       const studentMarks = marks.filter(m => m.student_id === student.id);
       const studentAttendance = attendance.filter(a => a.student_id === student.id);
-      const attendanceSummary: Record<string, number> = { present: 0, absent: 0, leave: 0 };
+      const attendanceSummary: Record<string, number> = { present: 0, absent: 0, leave: 0, class_total_days: classTotalDays };
       studentAttendance.forEach(a => {
         attendanceSummary[a.status] = parseInt(a.count);
       });
