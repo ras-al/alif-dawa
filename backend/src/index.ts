@@ -65,7 +65,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(port, () => {
+app.listen(port as number, '0.0.0.0', () => {
   console.log(`Alif Dawa College API running on port ${port}`);
 });
 

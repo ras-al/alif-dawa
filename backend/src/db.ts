@@ -9,7 +9,7 @@ const pool = new Pool({
 
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  // Do not exit the process, let pg pool handle reconnections
 });
 
 export default pool;
