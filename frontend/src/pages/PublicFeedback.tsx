@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../api/client';
+import type { ClassRecord, Student } from '../types';
 
 const PublicFeedback = () => {
   const [formData, setFormData] = useState({
@@ -11,6 +12,23 @@ const PublicFeedback = () => {
     feedback: ''
   });
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [classes, setClasses] = useState<ClassRecord[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState('');
+
+  useEffect(() => {
+    api.get('/classes').then((res) => setClasses(res.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (selectedClassId) {
+      api.get('/students', { params: { class_id: selectedClassId, limit: 1000 } })
+        .then((res) => setStudents(res.data.data || []))
+        .catch(() => setStudents([]));
+    } else {
+      setStudents([]);
+    }
+  }, [selectedClassId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -31,6 +49,7 @@ const PublicFeedback = () => {
         class_name: '',
         feedback: ''
       });
+      setSelectedClassId('');
     } catch (err) {
       console.error('Submit feedback error', err);
       setStatus('error');
@@ -62,28 +81,44 @@ const PublicFeedback = () => {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Student Name *</label>
-              <input
-                type="text"
-                name="student_name"
+              <label className="block text-sm font-medium text-slate-700 mb-1">Class *</label>
+              <select
                 required
-                value={formData.student_name}
-                onChange={handleChange}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:border-[#14532D] focus:ring-1 focus:ring-[#14532D] outline-none transition-shadow"
-                placeholder="Enter student's full name"
-              />
+                value={selectedClassId}
+                onChange={(e) => {
+                  const classId = e.target.value;
+                  const selectedClass = classes.find((c) => c.id.toString() === classId);
+                  setSelectedClassId(classId);
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    class_name: selectedClass ? selectedClass.name : '',
+                    student_name: '' // Reset student when class changes
+                  }));
+                }}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:border-[#14532D] focus:ring-1 focus:ring-[#14532D] outline-none transition-shadow bg-white"
+              >
+                <option value="" disabled>Select Class</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id.toString()}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Class</label>
-              <input
-                type="text"
-                name="class_name"
-                value={formData.class_name}
+              <label className="block text-sm font-medium text-slate-700 mb-1">Student Name *</label>
+              <select
+                name="student_name"
+                required
+                disabled={!selectedClassId}
+                value={formData.student_name}
                 onChange={handleChange}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:border-[#14532D] focus:ring-1 focus:ring-[#14532D] outline-none transition-shadow"
-                placeholder="e.g. H1, H2, etc."
-              />
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:border-[#14532D] focus:ring-1 focus:ring-[#14532D] outline-none transition-shadow bg-white disabled:bg-slate-50 disabled:text-slate-500"
+              >
+                <option value="" disabled>{selectedClassId ? 'Select Student' : 'Select a class first'}</option>
+                {students.map((s) => (
+                  <option key={s.id} value={s.name}>{s.name} ({s.admission_number})</option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -102,19 +137,15 @@ const PublicFeedback = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Relationship *</label>
-                <select
+                <input
+                  type="text"
                   name="relationship"
                   required
                   value={formData.relationship}
                   onChange={handleChange}
                   className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:border-[#14532D] focus:ring-1 focus:ring-[#14532D] outline-none transition-shadow"
-                >
-                  <option value="" disabled>Select...</option>
-                  <option value="Father">Father</option>
-                  <option value="Mother">Mother</option>
-                  <option value="Guardian">Guardian</option>
-                  <option value="Other">Other</option>
-                </select>
+                  placeholder="e.g. Father, Mother, Guardian"
+                />
               </div>
 
               <div>
