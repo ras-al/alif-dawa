@@ -17,12 +17,12 @@ const PublicFeedback = () => {
   const [selectedClassId, setSelectedClassId] = useState('');
 
   useEffect(() => {
-    api.get('/classes').then((res) => setClasses(res.data)).catch(() => {});
+    api.get('/feedback/classes').then((res) => setClasses(res.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (selectedClassId) {
-      api.get('/students', { params: { class_id: selectedClassId, limit: 1000 } })
+      api.get('/feedback/students', { params: { class_id: selectedClassId } })
         .then((res) => setStudents(res.data.data || []))
         .catch(() => setStudents([]));
     } else {

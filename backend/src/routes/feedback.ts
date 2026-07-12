@@ -5,6 +5,36 @@ import { authenticate, authorize } from '../middleware/auth';
 
 const router = Router();
 
+// GET /api/feedback/classes - Public route to get classes for feedback form
+router.get('/classes', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query('SELECT id, name FROM classes ORDER BY display_order, name');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Get public classes error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/feedback/students - Public route to get students for feedback form
+router.get('/students', async (req: Request, res: Response): Promise<void> => {
+  const { class_id } = req.query;
+  try {
+    if (!class_id) {
+      res.json({ data: [] });
+      return;
+    }
+    const result = await pool.query(
+      'SELECT id, name, admission_number FROM students WHERE class_id = $1 AND is_active = true ORDER BY name', 
+      [class_id]
+    );
+    res.json({ data: result.rows });
+  } catch (err) {
+    console.error('Get public students error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/feedback - Public route to submit feedback
 router.post('/', async (req: Request, res: Response): Promise<void> => {
   const { student_name, parent_name, relationship, phone_number, class_name, feedback } = req.body;
