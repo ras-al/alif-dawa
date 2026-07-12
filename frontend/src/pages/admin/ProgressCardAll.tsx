@@ -149,7 +149,10 @@ export default function ProgressCardAll() {
               </div>
 
               {/* Signatures */}
-              <div className="grid grid-cols-3 gap-8 mt-12 text-sm text-center">
+              <div className="grid grid-cols-4 gap-4 mt-12 text-sm text-center">
+                <div>
+                  <div className="border-t border-slate-800 pt-1">Parent's Signature</div>
+                </div>
                 <div>
                   <div className="border-t border-slate-800 pt-1">Teacher Signature</div>
                 </div>
