@@ -1,16 +1,15 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { Eye, EyeOff, LogIn, AlertCircle, Calendar } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
-export default function Login() {
+export default function FestLogin() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,16 +28,17 @@ export default function Login() {
       const stored = localStorage.getItem('user');
       if (stored) {
         const user = JSON.parse(stored);
-        if (user.role === 'admin') navigate('/admin');
-        else if (user.role === 'teacher') navigate('/teacher');
-        else if (user.role === 'class') navigate('/class');
+        
+        // Allowed roles for Fest Module
+        if (user.role === 'admin') navigate('/admin/fest');
         else if (user.role === 'stage_admin') navigate('/stage-admin');
         else if (user.role === 'judge') navigate('/judge');
         else if (user.role === 'green_room') navigate('/green-room');
         else if (user.role === 'announcer') navigate('/announcer');
-        else navigate('/student');
-      } else {
-        navigate('/admin');
+        else {
+          await logout();
+          setError('Access Denied: Your account does not have Fest privileges.');
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Login failed. Please check your credentials.');
@@ -49,15 +49,17 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h1 className="text-center text-2xl font-bold text-slate-900">Alif Dawa College</h1>
-        <p className="mt-1 text-center text-sm text-slate-500">Peravoor</p>
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#14532D]/10 text-[#14532D] mb-4">
+          <Calendar size={24} />
+        </div>
+        <h1 className="text-center text-2xl font-bold text-slate-900">Alif Dawa Fest Portal</h1>
+        <p className="mt-1 text-center text-sm text-slate-500">Staff & Judge Login</p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-6 border border-slate-200 rounded-lg sm:px-10">
-          <h2 className="text-base font-semibold text-slate-900 mb-6">Sign in to your account</h2>
-
+          
           {error && (
             <div className="mb-4 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
               <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
@@ -79,7 +81,7 @@ export default function Login() {
                 onChange={(e) => setUsername(e.target.value)}
                 className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm placeholder-slate-400
                   focus:outline-none focus:ring-1 focus:ring-[#14532D] focus:border-[#14532D]"
-                placeholder="Enter your username"
+                placeholder="Enter your assigned username"
               />
             </div>
 
@@ -113,19 +115,6 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="flex items-center">
-              <input
-                id="remember-me"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 border-slate-300 rounded text-[#14532D] focus:ring-[#14532D]"
-              />
-              <label htmlFor="remember-me" className="ml-2 text-sm text-slate-600">
-                Remember me
-              </label>
-            </div>
-
             <button
               type="submit"
               disabled={loading}
@@ -134,7 +123,7 @@ export default function Login() {
                 focus:ring-[#14532D] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? (
-                <span>Signing in...</span>
+                <span>Authenticating...</span>
               ) : (
                 <>
                   <LogIn className="h-4 w-4" />
@@ -143,6 +132,10 @@ export default function Login() {
               )}
             </button>
           </form>
+          
+          <div className="mt-6 text-center">
+             <a href="/fest" className="text-slate-500 hover:text-[#14532D] text-xs font-medium transition-colors">Return to Fest Home</a>
+          </div>
         </div>
       </div>
     </div>

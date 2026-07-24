@@ -1,9 +1,13 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
+import FestLayout from './components/FestLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import PublicFeedback from './pages/PublicFeedback';
+import FestHome from './pages/fest/FestHome';
+import ParticipantCodePicker from './pages/fest/ParticipantCodePicker';
+import FestLogin from './pages/fest/FestLogin';
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -11,6 +15,11 @@ import Students from './pages/admin/Students';
 import Teachers from './pages/admin/Teachers';
 import Classes from './pages/admin/Classes';
 import AcademicYears from './pages/admin/AcademicYears';
+import AdminFestDashboard from './pages/fest/AdminFestDashboard';
+import StageAdminDashboard from './pages/fest/StageAdminDashboard';
+import JudgeDashboard from './pages/fest/JudgeDashboard';
+import GreenRoomDashboard from './pages/fest/GreenRoomDashboard';
+import AnnouncerDashboard from './pages/fest/AnnouncerDashboard';
 import MarkEntry from './pages/admin/MarkEntry';
 import ProgressCard from './pages/admin/ProgressCard';
 import ClassProgressCard from './pages/admin/ClassProgressCard';
@@ -42,6 +51,10 @@ function App() {
       case 'admin': return '/admin';
       case 'teacher': return '/teacher';
       case 'class': return '/class';
+      case 'stage_admin': return '/stage-admin';
+      case 'judge': return '/judge';
+      case 'green_room': return '/green-room';
+      case 'announcer': return '/announcer';
       default: return '/student';
     }
   };
@@ -49,6 +62,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/fest/login" element={<FestLogin />} />
       <Route path="/feedback" element={<PublicFeedback />} />
 
       {/* Admin Routes */}
@@ -65,6 +79,7 @@ function App() {
           <Route path="/admin/leave" element={<LeaveRequests />} />
           <Route path="/admin/notices" element={<Notices />} />
           <Route path="/admin/users" element={<Users />} />
+          <Route path="/admin/fest" element={<AdminFestDashboard />} />
           <Route path="/admin/audit-logs" element={<AuditLogs />} />
           <Route path="/admin/settings" element={<Settings />} />
           <Route path="/admin/feedback" element={<AdminFeedback />} />
@@ -116,6 +131,20 @@ function App() {
         </Route>
       </Route>
 
+      {/* Fest Roles Routes */}
+      <Route element={<ProtectedRoute allowedRoles={['stage_admin']} />}>
+        <Route element={<FestLayout />}><Route path="/stage-admin" element={<StageAdminDashboard />} /></Route>
+      </Route>
+      <Route element={<ProtectedRoute allowedRoles={['judge']} />}>
+        <Route element={<FestLayout />}><Route path="/judge" element={<JudgeDashboard />} /></Route>
+      </Route>
+      <Route element={<ProtectedRoute allowedRoles={['green_room']} />}>
+        <Route element={<FestLayout />}><Route path="/green-room" element={<GreenRoomDashboard />} /></Route>
+      </Route>
+      <Route element={<ProtectedRoute allowedRoles={['announcer']} />}>
+        <Route element={<FestLayout />}><Route path="/announcer" element={<AnnouncerDashboard />} /></Route>
+      </Route>
+
       {/* Default redirect */}
       <Route path="/" element={
         user ? (
@@ -124,6 +153,10 @@ function App() {
           <Navigate to="/login" replace />
         )
       } />
+
+      {/* Fest Public Routes */}
+      <Route path="/fest" element={<FestHome />} />
+      <Route path="/fest/pick-code" element={<ParticipantCodePicker />} />
 
       {/* 404 */}
       <Route path="*" element={

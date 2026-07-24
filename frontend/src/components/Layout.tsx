@@ -25,6 +25,7 @@ const adminNavigation: NavItem[] = [
   { name: 'Leave Requests', href: '/admin/leave', icon: Clock },
   { name: 'Notices', href: '/admin/notices', icon: Bell },
   { name: 'Users', href: '/admin/users', icon: Shield },
+  { name: 'Fest Management', href: '/admin/fest', icon: Calendar },
   { name: 'Audit Logs', href: '/admin/audit-logs', icon: FileText },
   { name: 'Feedback', href: '/admin/feedback', icon: MessageSquare },
   { name: 'Settings', href: '/admin/settings', icon: Settings },

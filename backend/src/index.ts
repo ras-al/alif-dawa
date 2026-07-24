@@ -15,6 +15,7 @@ import dashboardRoutes from './routes/dashboard';
 import settingsRoutes from './routes/settings';
 import userRoutes from './routes/users';
 import feedbackRoutes from './routes/feedback';
+import festRoutes from './routes/fest';
 
 dotenv.config();
 
@@ -50,6 +51,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/fest', festRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
