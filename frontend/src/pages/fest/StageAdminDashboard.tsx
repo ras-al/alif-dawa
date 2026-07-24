@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/client';
-import { Settings, Play, CheckCircle, ChevronDown, ChevronUp, Key, Info } from 'lucide-react';
+import { Play, CheckCircle, ChevronDown, ChevronUp, Key, Info } from 'lucide-react';
 
 export default function StageAdminDashboard() {
   const [programs, setPrograms] = useState([]);

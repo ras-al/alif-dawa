@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../../api/client';
-import { PenTool, CheckCircle, Info } from 'lucide-react';
+import { CheckCircle, Info } from 'lucide-react';
 
 export default function JudgeDashboard() {
   const [programs, setPrograms] = useState([]);

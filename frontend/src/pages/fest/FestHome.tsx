@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Share2, Download, Calendar, MapPin, Award, Radio, Users, Star, Music, Activity, Trophy } from 'lucide-react';
 import axios from 'axios';
 
