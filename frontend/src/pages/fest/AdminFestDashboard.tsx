@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Users, Target, Activity, Trash2, Plus, UserPlus, Trophy, ChevronRight, UserCircle, Info, Award, Image as ImageIcon, Save, Upload } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Users, Target, Activity, Trash2, Plus, UserPlus, Trophy, ChevronRight, UserCircle, Info, Award, Image as ImageIcon, Save } from 'lucide-react';
 import api from '../../api/client';
 
 export default function AdminFestDashboard() {

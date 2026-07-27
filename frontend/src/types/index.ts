@@ -1,7 +1,7 @@
 export interface User {
   id: number;
   username: string;
-  role: 'admin' | 'teacher' | 'student' | 'class';
+  role: 'admin' | 'teacher' | 'student' | 'class' | 'stage_admin' | 'judge' | 'green_room' | 'announcer' | 'leader' | string;
   roleId: number;
   profile?: TeacherProfile | StudentProfile | ClassProfile | null;
   classId?: number;
