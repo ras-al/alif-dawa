@@ -111,7 +111,7 @@ export default function AcademicYears() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 mr-2">{year.start_date?.split('T')[0]} — {year.end_date?.split('T')[0]}</span>
+                <span className="text-xs text-slate-500 mr-2">{year.start_date?.split('T')[0]} - {year.end_date?.split('T')[0]}</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); setEditingYear(year); setShowYearForm(true); }}
                   className="p-1.5 text-slate-400 hover:text-slate-600 rounded" title="Edit"

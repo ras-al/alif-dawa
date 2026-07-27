@@ -20,6 +20,7 @@ import StageAdminDashboard from './pages/fest/StageAdminDashboard';
 import JudgeDashboard from './pages/fest/JudgeDashboard';
 import GreenRoomDashboard from './pages/fest/GreenRoomDashboard';
 import AnnouncerDashboard from './pages/fest/AnnouncerDashboard';
+import LeaderDashboard from './pages/fest/LeaderDashboard';
 import MarkEntry from './pages/admin/MarkEntry';
 import ProgressCard from './pages/admin/ProgressCard';
 import ClassProgressCard from './pages/admin/ClassProgressCard';
@@ -55,6 +56,7 @@ function App() {
       case 'judge': return '/judge';
       case 'green_room': return '/green-room';
       case 'announcer': return '/announcer';
+      case 'leader': return '/leader';
       default: return '/student';
     }
   };
@@ -143,6 +145,9 @@ function App() {
       </Route>
       <Route element={<ProtectedRoute allowedRoles={['announcer']} />}>
         <Route element={<FestLayout />}><Route path="/announcer" element={<AnnouncerDashboard />} /></Route>
+      </Route>
+      <Route element={<ProtectedRoute allowedRoles={['leader']} />}>
+        <Route element={<FestLayout />}><Route path="/leader" element={<LeaderDashboard />} /></Route>
       </Route>
 
       {/* Default redirect */}

@@ -1,10 +1,50 @@
-import express from 'express';
+import express, { Response } from 'express';
 import { authenticate, authorize } from '../middleware/auth';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import pool from '../db';
 import crypto from 'crypto';
 import { AuthRequest } from '../types';
 
 const router = express.Router();
+
+// Setup multer for template upload
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, 'poster-template.png');
+  }
+});
+const upload = multer({ storage });
+
+// ==========================================
+// SSE NOTIFICATION SYSTEM FOR LEADERS
+// ==========================================
+
+interface SSEClient {
+  id: number;
+  userId: number;
+  teamId: number;
+  res: Response;
+}
+
+const sseClients: SSEClient[] = [];
+let sseClientId = 0;
+
+function sendToTeamLeaders(teamId: number, data: object) {
+  sseClients.forEach(client => {
+    if (client.teamId === teamId) {
+      client.res.write(`data: ${JSON.stringify(data)}\n\n`);
+    }
+  });
+}
 
 // ==========================================
 // PUBLIC ROUTES
@@ -13,7 +53,7 @@ const router = express.Router();
 router.get('/public/programs', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, title, category, type, status FROM fest_programs ORDER BY id ASC`
+      `SELECT id, title, category, type, status, is_called FROM fest_programs ORDER BY id ASC`
     );
     res.json(rows);
   } catch (err: any) {
@@ -207,10 +247,13 @@ router.get('/admin/judges', authorize('admin'), async (req: AuthRequest, res) =>
 router.get('/admin/users', authorize('admin'), async (req: AuthRequest, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT u.id, u.username, r.name as role 
+      SELECT u.id, u.username, r.name as role,
+             ftl.fest_team_id, ft.name as team_name, ftl.is_first_leader
       FROM users u 
       JOIN roles r ON u.role_id = r.id 
-      WHERE r.name IN ('judge', 'stage_admin', 'green_room', 'announcer')
+      LEFT JOIN fest_team_leaders ftl ON u.id = ftl.user_id
+      LEFT JOIN fest_teams ft ON ftl.fest_team_id = ft.id
+      WHERE r.name IN ('judge', 'stage_admin', 'green_room', 'announcer', 'leader')
       ORDER BY r.name, u.username
     `);
     res.json(rows);
@@ -227,6 +270,32 @@ router.delete('/admin/users/:id', authorize('admin'), async (req: AuthRequest, r
     res.status(500).json({ error: err.message || 'Server error' });
   }
 });
+
+// Assign leader to a team
+router.post('/admin/assign-leader', authorize('admin'), async (req: AuthRequest, res) => {
+  const { user_id, fest_team_id, is_first_leader } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO fest_team_leaders (user_id, fest_team_id, is_first_leader) 
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, fest_team_id) DO UPDATE SET is_first_leader = EXCLUDED.is_first_leader`,
+      [user_id, fest_team_id, is_first_leader || false]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+router.delete('/admin/leader-assignment/:userId', authorize('admin'), async (req: AuthRequest, res) => {
+  try {
+    await pool.query(`DELETE FROM fest_team_leaders WHERE user_id = $1`, [req.params.userId]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
 // Participants
 router.get('/admin/participants', authorize('admin'), async (req: AuthRequest, res) => {
   try {
@@ -331,11 +400,11 @@ router.get('/judge/programs', authorize('judge', 'admin'), async (req: AuthReque
     // If admin, they see all programs
     // If judge, they see only their assigned programs
     const userId = req.user?.id;
-    let query = `SELECT id, title, category, type, status FROM fest_programs`;
+    let query = `SELECT id, title, category, type, status, is_called FROM fest_programs`;
     let params: any[] = [];
     
     if (req.user?.role === 'judge') {
-        query = `SELECT p.id, p.title, p.category, p.type, p.status 
+        query = `SELECT p.id, p.title, p.category, p.type, p.status, p.is_called 
                  FROM fest_programs p
                  JOIN fest_program_judges pj ON p.id = pj.fest_program_id
                  WHERE pj.judge_id = $1`;
@@ -504,11 +573,12 @@ router.get('/stage-admin/programs/:id/participants', authorize('stage_admin', 'a
 router.post('/stage-admin/generate-code', authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
   const { registration_id } = req.body;
   try {
-    const regRes = await pool.query(`SELECT fest_program_id, code_letter FROM fest_registrations WHERE id = $1`, [registration_id]);
+    const regRes = await pool.query(`SELECT fest_program_id, code_letter, fest_participant_id FROM fest_registrations WHERE id = $1`, [registration_id]);
     if (regRes.rows.length === 0) return res.status(404).json({ error: 'Registration not found' });
     if (regRes.rows[0].code_letter) return res.status(400).json({ error: 'Code letter already generated', code_letter: regRes.rows[0].code_letter });
     
     const programId = regRes.rows[0].fest_program_id;
+    const participantId = regRes.rows[0].fest_participant_id;
     
     // Get assigned letters
     const assignedRes = await pool.query(
@@ -534,7 +604,508 @@ router.post('/stage-admin/generate-code', authorize('stage_admin', 'admin'), asy
     }
     
     await pool.query(`UPDATE fest_registrations SET code_letter = $1 WHERE id = $2`, [code_letter, registration_id]);
+
+    try {
+      const partInfo = await pool.query(
+        `SELECT p.chest_number, p.fest_team_id, s.name as student_name, pr.title as program_title
+         FROM fest_participants p
+         JOIN students s ON p.student_id = s.id
+         JOIN fest_registrations reg ON reg.fest_participant_id = p.id
+         JOIN fest_programs pr ON reg.fest_program_id = pr.id
+         WHERE p.id = $1 AND reg.id = $2`,
+        [participantId, registration_id]
+      );
+      if (partInfo.rows.length > 0) {
+        const info = partInfo.rows[0];
+        // Store in DB
+        await pool.query(
+          `INSERT INTO fest_notifications (type, program_id, title, data) VALUES ($1, $2, $3, $4)`,
+          ['PARTICIPANT_REPORTED', programId, info.program_title, JSON.stringify({
+            student_name: info.student_name,
+            chest_number: info.chest_number,
+            program_title: info.program_title,
+            code_letter,
+          })]
+        );
+
+        sendToTeamLeaders(info.fest_team_id, {
+          type: 'PARTICIPANT_REPORTED',
+          timestamp: new Date().toISOString(),
+          data: {
+            student_name: info.student_name,
+            chest_number: info.chest_number,
+            program_title: info.program_title,
+            code_letter,
+          }
+        });
+      }
+    } catch (sseErr) {
+      console.error('SSE notification error (non-fatal):', sseErr);
+    }
+
     res.json({ code_letter });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// ==========================================
+// LEADER ROUTES
+// ==========================================
+
+// SSE stream for real-time leader notifications
+router.get('/leader/notifications/stream', authenticate, authorize('leader'), async (req: AuthRequest, res) => {
+  const userId = req.user!.id;
+
+  // Find which team this leader belongs to
+  const teamRes = await pool.query(
+    `SELECT fest_team_id FROM fest_team_leaders WHERE user_id = $1 LIMIT 1`,
+    [userId]
+  );
+  if (teamRes.rows.length === 0) {
+    res.status(403).json({ error: 'You are not assigned to any team' });
+    return;
+  }
+  const teamId = teamRes.rows[0].fest_team_id;
+
+  // Set up SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders();
+
+  // Send initial connection message
+  res.write(`data: ${JSON.stringify({ type: 'CONNECTED', message: 'Leader notification stream connected' })}\n\n`);
+
+  const clientId = ++sseClientId;
+  sseClients.push({ id: clientId, userId, teamId, res });
+
+  // Keep alive every 30s
+  const keepAlive = setInterval(() => {
+    res.write(`: keepalive\n\n`);
+  }, 30000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    const idx = sseClients.findIndex(c => c.id === clientId);
+    if (idx !== -1) sseClients.splice(idx, 1);
+  });
+});
+
+// Leader dashboard data: team info, participants, points
+router.get('/leader/dashboard', authenticate, authorize('leader'), async (req: AuthRequest, res) => {
+  const userId = req.user!.id;
+  try {
+    // Get leader's team
+    const teamRes = await pool.query(
+      `SELECT ftl.fest_team_id, ftl.is_first_leader, ft.name as team_name
+       FROM fest_team_leaders ftl
+       JOIN fest_teams ft ON ftl.fest_team_id = ft.id
+       WHERE ftl.user_id = $1 LIMIT 1`,
+      [userId]
+    );
+    if (teamRes.rows.length === 0) {
+      return res.status(403).json({ error: 'You are not assigned to any team' });
+    }
+    const team = teamRes.rows[0];
+
+    // Get team points
+    const pointsRes = await pool.query(
+      `SELECT COALESCE(SUM(r.points), 0)::int as total_points
+       FROM fest_results r
+       JOIN fest_registrations reg ON r.fest_registration_id = reg.id
+       JOIN fest_participants part ON reg.fest_participant_id = part.id
+       WHERE part.fest_team_id = $1 AND r.published_at IS NOT NULL`,
+      [team.fest_team_id]
+    );
+
+    // Get team participants
+    const participantsRes = await pool.query(
+      `SELECT p.id, p.chest_number, s.name as student_name
+       FROM fest_participants p
+       JOIN students s ON p.student_id = s.id
+       WHERE p.fest_team_id = $1
+       ORDER BY p.chest_number ASC`,
+      [team.fest_team_id]
+    );
+
+    // Get team results
+    const resultsRes = await pool.query(
+      `SELECT r.position, r.points, pr.title as program_title, pr.category, s.name as student_name, p.chest_number
+       FROM fest_results r
+       JOIN fest_registrations reg ON r.fest_registration_id = reg.id
+       JOIN fest_participants p ON reg.fest_participant_id = p.id
+       JOIN students s ON p.student_id = s.id
+       JOIN fest_programs pr ON r.fest_program_id = pr.id
+       WHERE p.fest_team_id = $1 AND r.published_at IS NOT NULL
+       ORDER BY r.points DESC`,
+      [team.fest_team_id]
+    );
+
+    // Get global live/scheduled programs (limit 5 to keep dashboard clean)
+    const liveRes = await pool.query(
+      `SELECT id, title, category, status, is_called
+       FROM fest_programs
+       WHERE status IN ('live', 'scheduled')
+       ORDER BY 
+         CASE WHEN status = 'live' THEN 1 ELSE 2 END ASC, 
+         title ASC
+       LIMIT 5`
+    );
+
+    // Get leaderboard for context
+    const leaderboardRes = await pool.query(
+      `SELECT t.id, t.name as team_name, COALESCE(SUM(r.points), 0)::int as total_points
+       FROM fest_teams t
+       LEFT JOIN fest_participants part ON t.id = part.fest_team_id
+       LEFT JOIN fest_registrations reg ON part.id = reg.fest_participant_id
+       LEFT JOIN fest_results r ON reg.id = r.fest_registration_id AND r.published_at IS NOT NULL
+       GROUP BY t.id, t.name
+       ORDER BY total_points DESC`
+    );
+
+    // Get stored notifications from DB (limit 50)
+    const notifsRes = await pool.query(
+      `SELECT id, type, program_id, title, category, data, created_at as timestamp
+       FROM fest_notifications
+       ORDER BY id DESC
+       LIMIT 50`
+    );
+
+    // Get active calls from DB (programs currently called)
+    const activeCallsRes = await pool.query(
+      `SELECT id, title, category
+       FROM fest_programs
+       WHERE is_called = true AND status = 'scheduled'
+       ORDER BY title ASC`
+    );
+
+    res.json({
+      team: {
+        id: team.fest_team_id,
+        name: team.team_name,
+        is_first_leader: team.is_first_leader,
+        total_points: pointsRes.rows[0].total_points,
+      },
+      participants: participantsRes.rows,
+      results: resultsRes.rows,
+      live_programs: liveRes.rows,
+      leaderboard: leaderboardRes.rows,
+      notifications: notifsRes.rows,
+      active_calls: activeCallsRes.rows,
+    });
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Also push SSE when program status changes to live
+router.put('/admin/programs/:id/status-notify', authenticate, authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
+  const { status } = req.body;
+  const programId = req.params.id;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE fest_programs SET status = $1 WHERE id = $2 RETURNING *`,
+      [status, programId]
+    );
+
+    // If going live, notify ALL connected leaders and store in DB
+    if (status === 'live') {
+      await pool.query(
+        `UPDATE fest_programs SET is_called = false WHERE id = $1`,
+        [programId]
+      );
+      await pool.query(
+        `DELETE FROM fest_notifications WHERE program_id = $1`,
+        [programId]
+      );
+      await pool.query(
+        `INSERT INTO fest_notifications (type, program_id, title, category, data) VALUES ($1, $2, $3, $4, $5)`,
+        ['PROGRAM_LIVE', rows[0].id, rows[0].title, rows[0].category, JSON.stringify({
+          program_id: rows[0].id,
+          program_title: rows[0].title,
+          category: rows[0].category,
+        })]
+      );
+
+      sseClients.forEach(client => {
+        client.res.write(`data: ${JSON.stringify({
+          type: 'PROGRAM_LIVE',
+          timestamp: new Date().toISOString(),
+          data: {
+            program_id: rows[0].id,
+            program_title: rows[0].title,
+            category: rows[0].category,
+          }
+        })}\n\n`);
+      });
+    } else {
+      // If completed or scheduled, delete active notifications for this program from DB
+      await pool.query(
+        `DELETE FROM fest_notifications WHERE program_id = $1`,
+        [programId]
+      );
+    }
+
+    res.json(rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Push SSE to call for participants
+router.put('/admin/programs/:id/call-participants', authenticate, authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
+  const programId = req.params.id;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE fest_programs SET is_called = true WHERE id = $1 RETURNING title, category`,
+      [programId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Program not found' });
+    
+    const program = rows[0];
+
+    // Insert notification into DB
+    await pool.query(
+      `INSERT INTO fest_notifications (type, program_id, title, category, data) VALUES ($1, $2, $3, $4, $5)`,
+      ['PROGRAM_CALL', programId, program.title, program.category, JSON.stringify({
+        program_id: programId,
+        program_title: program.title,
+        category: program.category,
+      })]
+    );
+
+    // Notify ALL connected leaders
+    sseClients.forEach(client => {
+      client.res.write(`data: ${JSON.stringify({
+        type: 'PROGRAM_CALL',
+        timestamp: new Date().toISOString(),
+        data: {
+          program_id: programId,
+          program_title: program.title,
+          category: program.category,
+        }
+      })}\n\n`);
+    });
+
+    res.json({ success: true, message: 'Reporting call sent' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Revoke SSE call for participants
+router.put('/admin/programs/:id/revoke-call', authenticate, authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
+  const programId = req.params.id;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE fest_programs SET is_called = false WHERE id = $1 RETURNING title, category`,
+      [programId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Program not found' });
+    
+    const program = rows[0];
+
+    // Remove active call notification from DB when revoked
+    await pool.query(`DELETE FROM fest_notifications WHERE program_id = $1 AND type = 'PROGRAM_CALL'`, [programId]);
+
+    // Notify ALL connected leaders
+    sseClients.forEach(client => {
+      client.res.write(`data: ${JSON.stringify({
+        type: 'PROGRAM_CALL_REVOKED',
+        timestamp: new Date().toISOString(),
+        data: {
+          program_id: programId,
+          program_title: program.title,
+          category: program.category,
+        }
+      })}\n\n`);
+    });
+
+    res.json({ success: true, message: 'Reporting call revoked' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// GET /leader/programs
+// Returns all programs with registered participant counts for the current leader's team
+router.get('/leader/programs', authenticate, authorize('leader'), async (req: AuthRequest, res) => {
+  try {
+    // Determine the teamId from the token's teamId or DB
+    const userId = req.user!.id;
+    const teamRes = await pool.query(`SELECT fest_team_id FROM fest_team_leaders WHERE user_id = $1 LIMIT 1`, [userId]);
+    if (teamRes.rows.length === 0) return res.status(403).json({ error: 'No team assigned' });
+    const teamId = teamRes.rows[0].fest_team_id;
+
+    const { rows } = await pool.query(`
+      SELECT p.*,
+             COALESCE(
+               (SELECT json_agg(json_build_object('id', p2.id, 'name', s.name, 'chest_number', p2.chest_number))
+                FROM fest_registrations r
+                JOIN fest_participants p2 ON r.fest_participant_id = p2.id
+                JOIN students s ON p2.student_id = s.id
+                WHERE r.fest_program_id = p.id AND p2.fest_team_id = $1),
+               '[]'::json
+             ) as registered_participants
+      FROM fest_programs p
+      ORDER BY p.category, p.type, p.title
+    `, [teamId]);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// POST /leader/programs/:id/register
+router.post('/leader/programs/:id/register', authenticate, authorize('leader'), async (req: AuthRequest, res) => {
+  const programId = req.params.id;
+  const { participantIds } = req.body;
+  try {
+    const userId = req.user!.id;
+    const teamRes = await pool.query(`SELECT fest_team_id FROM fest_team_leaders WHERE user_id = $1 LIMIT 1`, [userId]);
+    if (teamRes.rows.length === 0) return res.status(403).json({ error: 'No team assigned' });
+    const teamId = teamRes.rows[0].fest_team_id;
+
+    // Get program limits
+    const progRes = await pool.query(`SELECT team_limit, is_group, category FROM fest_programs WHERE id = $1`, [programId]);
+    if (progRes.rows.length === 0) return res.status(404).json({ error: 'Program not found' });
+    const { team_limit, category } = progRes.rows[0];
+
+    // Verify participants exist in this team and are valid
+    if (!participantIds || !Array.isArray(participantIds) || participantIds.length === 0) {
+      return res.status(400).json({ error: 'No participants provided' });
+    }
+
+    // Existing registrations for this program from this team
+    const regRes = await pool.query(`
+      SELECT r.fest_participant_id 
+      FROM fest_registrations r
+      JOIN fest_participants p ON r.fest_participant_id = p.id
+      WHERE r.fest_program_id = $1 AND p.fest_team_id = $2
+    `, [programId, teamId]);
+    const existingIds = regRes.rows.map(r => r.fest_participant_id);
+    
+    // Find ones to add and remove
+    const toAdd = participantIds.filter((id: number) => !existingIds.includes(id));
+    const toRemove = existingIds.filter((id: number) => !participantIds.includes(id));
+
+    if (team_limit !== null && participantIds.length > team_limit) {
+      return res.status(400).json({ error: `Registration exceeds the team limit of ${team_limit} for this program.` });
+    }
+
+    // Remove unchecked
+    for (const pid of toRemove) {
+      await pool.query(`DELETE FROM fest_registrations WHERE fest_program_id = $1 AND fest_participant_id = $2`, [programId, pid]);
+    }
+
+    // Add new checked
+    for (const pid of toAdd) {
+      const pRes = await pool.query(`SELECT id, category FROM fest_participants WHERE id = $1 AND fest_team_id = $2`, [pid, teamId]);
+      if (pRes.rows.length === 0) return res.status(400).json({ error: 'Participant not found in your team' });
+      
+      await pool.query(`INSERT INTO fest_registrations (fest_participant_id, fest_program_id) VALUES ($1, $2)`, [pid, programId]);
+    }
+
+    res.json({ success: true, added: toAdd.length, removed: toRemove.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// DELETE /leader/programs/:id/register
+router.delete('/leader/programs/:id/register', authenticate, authorize('leader'), async (req: AuthRequest, res) => {
+  const programId = req.params.id;
+  const { participantId } = req.body;
+  
+  try {
+    const userId = req.user!.id;
+    const teamRes = await pool.query(`SELECT fest_team_id FROM fest_team_leaders WHERE user_id = $1 LIMIT 1`, [userId]);
+    if (teamRes.rows.length === 0) return res.status(403).json({ error: 'No team assigned' });
+    const teamId = teamRes.rows[0].fest_team_id;
+
+    // Ensure the participant belongs to the team
+    const pRes = await pool.query(`SELECT id FROM fest_participants WHERE id = $1 AND fest_team_id = $2`, [participantId, teamId]);
+    if (pRes.rows.length === 0) return res.status(403).json({ error: 'Unauthorized to remove this participant' });
+
+    await pool.query(`DELETE FROM fest_registrations WHERE fest_program_id = $1 AND fest_participant_id = $2`, [programId, participantId]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Admin get all results (published and unpublished)
+router.get('/admin/results', authenticate, authorize('admin'), async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT r.id, r.position, r.points, r.published_at,
+             reg.code_letter,
+             p.title as program_title, p.category, p.type,
+             part.chest_number,
+             s.name as student_name,
+             t.name as team_name
+      FROM fest_results r
+      JOIN fest_registrations reg ON r.fest_registration_id = reg.id
+      JOIN fest_programs p ON reg.fest_program_id = p.id
+      JOIN fest_participants part ON reg.fest_participant_id = part.id
+      JOIN students s ON part.student_id = s.id
+      JOIN fest_teams t ON part.fest_team_id = t.id
+      ORDER BY r.published_at DESC NULLS FIRST, p.title, r.position
+    `);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Admin upload poster template and save config
+router.post('/admin/poster-template', authenticate, authorize('admin'), upload.single('template'), async (req: AuthRequest, res) => {
+  try {
+    const config = req.body.config || '{}';
+    
+    // Check if there is an existing template to update or insert new
+    const existing = await pool.query(`SELECT id, image_url FROM fest_poster_templates ORDER BY id DESC LIMIT 1`);
+    
+    let imageUrl = existing.rows.length > 0 ? existing.rows[0].image_url : '';
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`;
+    }
+
+    if (!imageUrl && !req.file) {
+      return res.status(400).json({ error: 'Image file is required for the first template.' });
+    }
+
+    if (existing.rows.length > 0) {
+      await pool.query(
+        `UPDATE fest_poster_templates SET image_url = $1, config = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+        [imageUrl, config, existing.rows[0].id]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO fest_poster_templates (image_url, config) VALUES ($1, $2)`,
+        [imageUrl, config]
+      );
+    }
+
+    res.json({ success: true, image_url: imageUrl, config: JSON.parse(config) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Public GET poster template
+router.get('/public/poster-template', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT image_url, config FROM fest_poster_templates ORDER BY id DESC LIMIT 1`);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'No template configured' });
+    }
+    res.json(rows[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Server error' });
   }

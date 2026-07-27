@@ -65,6 +65,22 @@ router.post('/login', async (req: AuthRequest, res: Response): Promise<void> => 
       }
     }
 
+    // If this is a leader login, attach the team id
+    let leaderTeamInfo = null;
+    if (user.role === 'leader') {
+      const teamResult = await pool.query(
+        `SELECT ftl.fest_team_id, ft.name as team_name, ftl.is_first_leader
+         FROM fest_team_leaders ftl
+         JOIN fest_teams ft ON ftl.fest_team_id = ft.id
+         WHERE ftl.user_id = $1 LIMIT 1`,
+        [user.id]
+      );
+      if (teamResult.rows.length > 0) {
+        leaderTeamInfo = teamResult.rows[0];
+        tokenPayload.teamId = leaderTeamInfo.fest_team_id;
+      }
+    }
+
     const accessToken = jwt.sign(
       tokenPayload,
       process.env.JWT_SECRET || 'fallback-secret',
@@ -117,6 +133,7 @@ router.post('/login', async (req: AuthRequest, res: Response): Promise<void> => 
         roleId: user.role_id,
         profile,
         ...(user.role === 'class' && classInfo ? { classId: classInfo.id, className: classInfo.name } : {}),
+        ...(user.role === 'leader' && leaderTeamInfo ? { teamId: leaderTeamInfo.fest_team_id, teamName: leaderTeamInfo.team_name } : {}),
       },
     });
   } catch (err) {
@@ -238,6 +255,17 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response): Promise
         profile = { id: c.rows[0].id, name: c.rows[0].name };
         classId = c.rows[0].id;
         className = c.rows[0].name;
+      }
+    } else if (user.role === 'leader') {
+      const lt = await pool.query(
+        `SELECT ftl.fest_team_id, ft.name as team_name, ftl.is_first_leader
+         FROM fest_team_leaders ftl
+         JOIN fest_teams ft ON ftl.fest_team_id = ft.id
+         WHERE ftl.user_id = $1 LIMIT 1`,
+        [user.id]
+      );
+      if (lt.rows.length > 0) {
+        profile = { teamId: lt.rows[0].fest_team_id, teamName: lt.rows[0].team_name };
       }
     }
 

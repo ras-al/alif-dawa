@@ -21,7 +21,7 @@ export default function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    const roleHome = user.role === 'admin' ? '/admin' : user.role === 'teacher' ? '/teacher' : user.role === 'class' ? '/class' : '/student';
+    const roleHome = user.role === 'admin' ? '/admin' : user.role === 'teacher' ? '/teacher' : user.role === 'class' ? '/class' : user.role === 'leader' ? '/leader' : user.role === 'stage_admin' ? '/stage-admin' : user.role === 'judge' ? '/judge' : user.role === 'green_room' ? '/green-room' : user.role === 'announcer' ? '/announcer' : '/student';
     return <Navigate to={roleHome} replace />;
   }
 

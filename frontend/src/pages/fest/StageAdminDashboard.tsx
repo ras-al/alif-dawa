@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/client';
-import { Play, CheckCircle, ChevronDown, ChevronUp, Key, Info } from 'lucide-react';
+import { Play, CheckCircle, ChevronDown, ChevronUp, Key, Info, Bell, BellOff, RefreshCw } from 'lucide-react';
 
 export default function StageAdminDashboard() {
   const [programs, setPrograms] = useState([]);
@@ -22,10 +22,31 @@ export default function StageAdminDashboard() {
 
   const handleSetStatus = async (id: number, status: string) => {
     try {
-      await api.put(`/fest/admin/programs/${id}/status`, { status });
+      await api.put(`/fest/admin/programs/${id}/status-notify`, { status });
       fetchPrograms();
     } catch (err) {
       alert('Failed to update status');
+    }
+  };
+
+  const handleToggleCall = async (program: any) => {
+    const isCalled = program.is_called;
+    if (isCalled) {
+      if (!confirm('Are you sure you want to revoke the reporting call for this program?')) return;
+      try {
+        await api.put(`/fest/admin/programs/${program.id}/revoke-call`);
+        fetchPrograms();
+      } catch (err: any) {
+        alert(err.response?.data?.error || 'Failed to revoke call');
+      }
+    } else {
+      try {
+        await api.put(`/fest/admin/programs/${program.id}/call-participants`);
+        fetchPrograms();
+        alert('Reporting call sent to leaders!');
+      } catch (err: any) {
+        alert(err.response?.data?.error || 'Failed to send call');
+      }
     }
   };
 
@@ -102,10 +123,22 @@ export default function StageAdminDashboard() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right flex items-center justify-end gap-4">
-                    {p.status !== 'live' ? (
-                      <button onClick={() => handleSetStatus(p.id, 'live')} className="text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1.5"><Play size={16} /> Set Live</button>
-                    ) : (
-                      <button onClick={() => handleSetStatus(p.id, 'completed')} className="text-amber-600 hover:text-amber-700 font-semibold flex items-center gap-1.5"><CheckCircle size={16} /> Finish</button>
+                    {p.status === 'scheduled' && (
+                      <>
+                        <button onClick={() => handleToggleCall(p)} title={p.is_called ? "Revoke Call" : "Call Participants"} className={`${p.is_called ? 'text-rose-600 hover:text-rose-700' : 'text-indigo-600 hover:text-indigo-700'} font-semibold flex items-center gap-1.5`}>
+                          {p.is_called ? <><BellOff size={16} /> Revoke</> : <><Bell size={16} /> Call</>}
+                        </button>
+                        <button onClick={() => handleSetStatus(p.id, 'live')} className="text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1.5"><Play size={16} /> Set Live</button>
+                      </>
+                    )}
+                    {p.status === 'live' && (
+                      <>
+                        <button onClick={() => handleSetStatus(p.id, 'scheduled')} className="text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1.5"><RefreshCw size={16} /> Reset</button>
+                        <button onClick={() => handleSetStatus(p.id, 'completed')} className="text-amber-600 hover:text-amber-700 font-semibold flex items-center gap-1.5"><CheckCircle size={16} /> Finish</button>
+                      </>
+                    )}
+                    {p.status === 'completed' && (
+                      <button onClick={() => handleSetStatus(p.id, 'scheduled')} className="text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1.5"><RefreshCw size={16} /> Reset</button>
                     )}
                     <button onClick={() => handleToggleParticipants(p.id)} className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
                       Participants {expandedProgramId === p.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}

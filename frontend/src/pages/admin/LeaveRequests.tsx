@@ -52,7 +52,7 @@ export default function LeaveRequests() {
                 <tr key={r.id} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-2.5 text-slate-900 font-medium">{r.student_name || '—'}</td>
                   <td className="px-4 py-2.5 text-slate-600">{r.class_name || '—'}</td>
-                  <td className="px-4 py-2.5 text-slate-600">{r.start_date?.split('T')[0]} — {r.end_date?.split('T')[0]}</td>
+                  <td className="px-4 py-2.5 text-slate-600">{r.start_date?.split('T')[0]} - {r.end_date?.split('T')[0]}</td>
                   <td className="px-4 py-2.5 text-slate-600 max-w-[200px] truncate">{r.reason}</td>
                   <td className="px-4 py-2.5">
                     <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${

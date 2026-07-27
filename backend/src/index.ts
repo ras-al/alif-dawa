@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 
 import authRoutes from './routes/auth';
 import studentRoutes from './routes/students';
@@ -28,6 +29,9 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
+
+// Serve static files (like poster templates)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Security headers
 app.use((_req, res, next) => {

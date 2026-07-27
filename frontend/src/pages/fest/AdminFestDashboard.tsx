@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Target, Activity, Trash2, Plus, UserPlus, Trophy, ChevronRight, UserCircle, Info } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Users, Target, Activity, Trash2, Plus, UserPlus, Trophy, ChevronRight, UserCircle, Info, Award, Image as ImageIcon, Save, Upload } from 'lucide-react';
 import api from '../../api/client';
 
 export default function AdminFestDashboard() {
@@ -11,10 +11,23 @@ export default function AdminFestDashboard() {
   const [participants, setParticipants] = useState([]);
   const [registrations, setRegistrations] = useState([]);
   const [students, setStudents] = useState([]);
+  const [results, setResults] = useState([]);
+  const [posterTemplate, setPosterTemplate] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Modals state
-  const [activeTab, setActiveTab] = useState<'overview' | 'programs' | 'teams' | 'judges' | 'users' | 'participants'>('overview');
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: Activity },
+    { id: 'programs', label: 'Programs', icon: Trophy },
+    { id: 'teams', label: 'Teams', icon: Users },
+    { id: 'judges', label: 'Assign Judges', icon: Target },
+    { id: 'users', label: 'Fest Users', icon: UserPlus },
+    { id: 'participants', label: 'Participants', icon: UserCircle },
+    { id: 'results', label: 'All Results', icon: Award },
+    { id: 'poster', label: 'Poster Template', icon: ImageIcon },
+  ] as const;
+
+  type TabType = typeof tabs[number]['id'];
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
   
   // Forms state
   const [newProgram, setNewProgram] = useState({ title: '', category: 'Premier', type: 'stage', max_judges: 3 });
@@ -23,29 +36,51 @@ export default function AdminFestDashboard() {
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'judge' });
   const [newParticipant, setNewParticipant] = useState({ student_id: '', fest_team_id: '' });
   const [newRegistration, setNewRegistration] = useState({ fest_participant_id: '', fest_program_id: '' });
+  const [leaderAssign, setLeaderAssign] = useState({ user_id: '', fest_team_id: '', is_first_leader: false });
+  
+  // Poster State
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [posterConfig, setPosterConfig] = useState({
+    student_name: { x: 50, y: 50, fontSize: 48, color: '#000000', visible: true },
+    program_title: { x: 50, y: 120, fontSize: 36, color: '#333333', visible: true },
+    category: { x: 50, y: 170, fontSize: 24, color: '#666666', visible: true },
+    position: { x: 50, y: 220, fontSize: 64, color: '#FFD700', visible: true },
+    team_name: { x: 50, y: 300, fontSize: 32, color: '#14532D', visible: true }
+  });
 
   const loadData = async () => {
     try {
-      const [progRes, teamRes, judgeRes, userRes, partRes, regRes, studRes] = await Promise.all([
+      const [progRes, teamRes, judgeRes, userRes, partRes, regRes, studRes, resultRes, posterRes] = await Promise.allSettled([
         api.get('/fest/public/programs'),
         api.get('/fest/admin/teams'),
         api.get('/fest/admin/judges'),
         api.get('/fest/admin/users'),
         api.get('/fest/admin/participants'),
         api.get('/fest/admin/registrations'),
-        api.get('/students') // Assumes this endpoint exists for admin
+        api.get('/students'),
+        api.get('/fest/admin/results'),
+        api.get('/fest/public/poster-template')
       ]);
-      setPrograms(progRes.data);
-      setTeams(teamRes.data);
-      setJudges(judgeRes.data);
-      setFestUsers(userRes.data);
-      setParticipants(partRes.data);
-      setRegistrations(regRes.data);
-      setStudents(studRes.data.data || studRes.data); // Handle pagination structure if present
+      
+      if (progRes.status === 'fulfilled') setPrograms(progRes.value.data);
+      if (teamRes.status === 'fulfilled') setTeams(teamRes.value.data);
+      if (judgeRes.status === 'fulfilled') setJudges(judgeRes.value.data);
+      if (userRes.status === 'fulfilled') setFestUsers(userRes.value.data);
+      if (partRes.status === 'fulfilled') setParticipants(partRes.value.data);
+      if (regRes.status === 'fulfilled') setRegistrations(regRes.value.data);
+      if (studRes.status === 'fulfilled') setStudents(studRes.value.data.data || studRes.value.data);
+      if (resultRes.status === 'fulfilled') setResults(resultRes.value.data);
+      if (posterRes.status === 'fulfilled' && posterRes.value.data) {
+        setPosterTemplate(posterRes.value.data);
+        if (posterRes.value.data.config) {
+          setPosterConfig(posterRes.value.data.config);
+        }
+      }
+      
       setStats({
-        programs: progRes.data.length,
-        teams: teamRes.data.length,
-        live: progRes.data.filter((p: any) => p.status === 'live').length
+        programs: progRes.status === 'fulfilled' ? progRes.value.data.length : 0,
+        teams: teamRes.status === 'fulfilled' ? teamRes.value.data.length : 0,
+        live: progRes.status === 'fulfilled' ? progRes.value.data.filter((p: any) => p.status === 'live').length : 0
       });
     } catch (err) {
       console.error(err);
@@ -178,20 +213,36 @@ export default function AdminFestDashboard() {
     }
   };
 
+  const handleSavePosterTemplate = async () => {
+    const formData = new FormData();
+    if (posterFile) formData.append('template', posterFile);
+    formData.append('config', JSON.stringify(posterConfig));
+
+    try {
+      const res = await api.post('/fest/admin/poster-template', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert('Poster template saved successfully!');
+      setPosterTemplate(res.data);
+      setPosterFile(null);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to save poster template');
+    }
+  };
+
+  const updatePosterField = (field: string, key: string, value: any) => {
+    setPosterConfig(prev => ({
+      ...prev,
+      [field]: { ...prev[field as keyof typeof posterConfig], [key]: value }
+    }));
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-[400px]">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#14532D]"></div>
     </div>
   );
 
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: Activity },
-    { id: 'programs', label: 'Programs', icon: Trophy },
-    { id: 'teams', label: 'Teams', icon: Users },
-    { id: 'judges', label: 'Assign Judges', icon: Target },
-    { id: 'users', label: 'Fest Users', icon: UserPlus },
-    { id: 'participants', label: 'Participants', icon: UserCircle },
-  ] as const;
 
   return (
     <div className="max-w-7xl mx-auto pb-12">
@@ -428,6 +479,7 @@ export default function AdminFestDashboard() {
                       <option value="stage_admin">Stage Admin</option>
                       <option value="green_room">Green Room</option>
                       <option value="announcer">Announcer</option>
+                      <option value="leader">Team Leader</option>
                     </select>
                   </div>
                   <button type="submit" className="bg-[#14532D] text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#14532D]/90 transition-all shadow-sm">
@@ -454,10 +506,16 @@ export default function AdminFestDashboard() {
                             u.role === 'judge' ? 'bg-amber-100 text-amber-700' :
                             u.role === 'stage_admin' ? 'bg-blue-100 text-blue-700' :
                             u.role === 'green_room' ? 'bg-emerald-100 text-emerald-700' :
+                            u.role === 'leader' ? 'bg-indigo-100 text-indigo-700' :
                             'bg-purple-100 text-purple-700'
                           }`}>
                             {u.role.replace('_', ' ')}
                           </span>
+                          {u.role === 'leader' && u.team_name && (
+                            <span className="px-2 py-0.5 bg-slate-100 rounded text-xs font-medium text-slate-600 ml-2">
+                              Team: {u.team_name} {u.is_first_leader ? '(1st)' : '(2nd)'}
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-right">
                           <button onClick={() => handleDeleteUser(u.id)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-2 rounded-lg transition-colors inline-flex items-center justify-center">
@@ -470,6 +528,48 @@ export default function AdminFestDashboard() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Leader Team Assignment */}
+              {festUsers.some((u: any) => u.role === 'leader') && (
+                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 mt-8">
+                  <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wide">Assign Leader to Team</h3>
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    try {
+                      await api.post('/fest/admin/assign-leader', leaderAssign);
+                      setLeaderAssign({ user_id: '', fest_team_id: '', is_first_leader: false });
+                      loadData();
+                      alert('Leader assigned to team successfully!');
+                    } catch (err: any) {
+                      alert(err.response?.data?.error || 'Failed to assign leader');
+                    }
+                  }} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Leader Account</label>
+                      <select required value={leaderAssign.user_id} onChange={e => setLeaderAssign({...leaderAssign, user_id: e.target.value})} className="border border-slate-300 rounded-lg px-4 py-2.5 text-sm w-full bg-white focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none transition-all">
+                        <option value="">Select a Leader</option>
+                        {festUsers.filter((u: any) => u.role === 'leader').map((u: any) => <option key={u.id} value={u.id}>{u.username}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Team</label>
+                      <select required value={leaderAssign.fest_team_id} onChange={e => setLeaderAssign({...leaderAssign, fest_team_id: e.target.value})} className="border border-slate-300 rounded-lg px-4 py-2.5 text-sm w-full bg-white focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none transition-all">
+                        <option value="">Select a Team</option>
+                        {teams.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
+                        <input type="checkbox" checked={leaderAssign.is_first_leader} onChange={e => setLeaderAssign({...leaderAssign, is_first_leader: e.target.checked})} className="rounded border-slate-300" />
+                        First Leader
+                      </label>
+                    </div>
+                    <button type="submit" className="bg-[#14532D] text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#14532D]/90 transition-all shadow-sm">
+                      <UserPlus size={18} /> Assign to Team
+                    </button>
+                  </form>
+                </div>
+              )}
             </div>
           )}
 
@@ -584,6 +684,110 @@ export default function AdminFestDashboard() {
                     {registrations.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">No event registrations found.</td></tr>}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'results' && (
+            <div className="space-y-6">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Position</th>
+                      <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Program</th>
+                      <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Student Name</th>
+                      <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Team</th>
+                      <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {results.map((r: any) => (
+                      <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold ${
+                            r.position === 1 ? 'bg-amber-100 text-amber-700' : 
+                            r.position === 2 ? 'bg-slate-200 text-slate-700' : 
+                            'bg-orange-100 text-orange-700'
+                          }`}>
+                            {r.position}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="font-bold text-slate-900">{r.program_title}</p>
+                          <p className="text-xs text-slate-500">{r.category}</p>
+                        </td>
+                        <td className="px-6 py-4 font-medium text-slate-900">{r.student_name}</td>
+                        <td className="px-6 py-4 text-slate-600">{r.team_name}</td>
+                        <td className="px-6 py-4 text-right">
+                          {r.published_at ? (
+                            <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase">Published</span>
+                          ) : (
+                            <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold uppercase">Draft</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {results.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">No results have been recorded yet.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'poster' && (
+            <div className="space-y-8">
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-6 text-blue-900 shadow-sm">
+                <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
+                  <Info size={20} className="text-blue-600" /> Poster Configuration
+                </h3>
+                <p className="text-sm opacity-90 mb-2">Upload a background image for the result poster and set the X/Y coordinates for where the text should appear. These coordinates (in pixels) are relative to the top-left corner of the image.</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Editor Settings */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Background Image</label>
+                    <input type="file" accept="image/*" onChange={e => setPosterFile(e.target.files?.[0] || null)} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#14532D]/10 file:text-[#14532D] hover:file:bg-[#14532D]/20 cursor-pointer" />
+                    {posterTemplate && !posterFile && <p className="text-xs text-emerald-600 mt-2 font-medium">✓ Active template is loaded</p>}
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <h4 className="font-bold text-slate-900">Text Positions (X, Y)</h4>
+                    {Object.entries(posterConfig).map(([key, config]) => (
+                      <div key={key} className="flex items-center gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <div className="w-32 font-medium text-sm text-slate-700 capitalize">{key.replace('_', ' ')}</div>
+                        <input type="number" value={config.x} onChange={e => updatePosterField(key, 'x', Number(e.target.value))} className="w-20 px-3 py-1.5 border border-slate-300 rounded text-sm text-center" placeholder="X" />
+                        <input type="number" value={config.y} onChange={e => updatePosterField(key, 'y', Number(e.target.value))} className="w-20 px-3 py-1.5 border border-slate-300 rounded text-sm text-center" placeholder="Y" />
+                        <input type="color" value={config.color} onChange={e => updatePosterField(key, 'color', e.target.value)} className="w-8 h-8 rounded border border-slate-300 cursor-pointer p-0.5" />
+                        <input type="number" value={config.fontSize} onChange={e => updatePosterField(key, 'fontSize', Number(e.target.value))} className="w-16 px-3 py-1.5 border border-slate-300 rounded text-sm text-center" placeholder="Size" />
+                      </div>
+                    ))}
+                  </div>
+
+                  <button onClick={handleSavePosterTemplate} className="w-full bg-[#14532D] text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-[#14532D]/90 transition-all shadow-sm">
+                    <Save size={18} /> Save Poster Configuration
+                  </button>
+                </div>
+
+                {/* Live Preview (Simulated with absolute positioning) */}
+                <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 flex items-center justify-center min-h-[500px] overflow-hidden relative">
+                  {(posterFile || posterTemplate?.image_url) ? (
+                    <div className="relative w-full h-full max-w-md mx-auto aspect-[4/5] bg-white shadow-lg overflow-hidden border border-slate-300" style={{ backgroundImage: `url(${posterFile ? URL.createObjectURL(posterFile) : `http://localhost:5000${posterTemplate.image_url}`})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                      {Object.entries(posterConfig).map(([key, config]) => (
+                        <div key={key} style={{ position: 'absolute', left: `${config.x}px`, top: `${config.y}px`, color: config.color, fontSize: `${config.fontSize / 2}px`, fontWeight: 'bold', whiteSpace: 'nowrap', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
+                          [{key.toUpperCase()}]
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center text-slate-400">
+                      <ImageIcon size={48} className="mx-auto mb-3 opacity-50" />
+                      <p className="font-medium">No Template Uploaded</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

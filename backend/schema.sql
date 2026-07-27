@@ -362,8 +362,11 @@ CREATE TABLE fest_programs (
     title VARCHAR(255) NOT NULL,
     category VARCHAR(50) NOT NULL, -- Premier, Junior, Senior, General
     type VARCHAR(50) NOT NULL, -- stage, off-stage
+    team_limit INTEGER, -- null means 'all'
+    is_group BOOLEAN DEFAULT false,
     max_judges INTEGER DEFAULT 3,
     status VARCHAR(50) DEFAULT 'scheduled', -- scheduled, live, completed
+    is_called BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -380,6 +383,7 @@ CREATE TABLE fest_participants (
     id SERIAL PRIMARY KEY,
     student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
     fest_team_id INTEGER NOT NULL REFERENCES fest_teams(id),
+    category VARCHAR(50), -- Premier, Junior, Senior
     chest_number VARCHAR(20) UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(student_id)
@@ -415,3 +419,21 @@ CREATE TABLE fest_results (
     published_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(fest_program_id, fest_registration_id)
 );
+
+CREATE TABLE IF NOT EXISTS fest_poster_templates (
+    id SERIAL PRIMARY KEY,
+    image_url TEXT NOT NULL,
+    config JSONB NOT NULL DEFAULT '{}',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS fest_notifications (
+    id SERIAL PRIMARY KEY,
+    type VARCHAR(50) NOT NULL,
+    program_id INT REFERENCES fest_programs(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    category VARCHAR(50),
+    data JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
