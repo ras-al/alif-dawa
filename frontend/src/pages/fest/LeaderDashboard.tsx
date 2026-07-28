@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, Users, Trophy, Activity, Award, Zap, TrendingUp, Radio, ChevronRight, ClipboardEdit, Check, X, Download, Loader2, Filter } from 'lucide-react';
+import { Bell, Users, Trophy, Activity, Award, Zap, TrendingUp, Radio, ChevronRight, ClipboardEdit, Check, X, Download, Loader2 } from 'lucide-react';
 import api from '../../api/client';
 import { usePosterGenerator } from '../../components/ResultPosterGenerator';
 
