@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2 } from 'lucide-react';
+import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2, Filter, BookOpen, Clock, Shield } from 'lucide-react';
 import axios from 'axios';
 import { usePosterGenerator } from '../../components/ResultPosterGenerator';
 
@@ -21,6 +21,7 @@ interface LeaderboardTeam {
 
 const FestHome = () => {
   const [activeTab, setActiveTab] = useState<'about' | 'results' | 'news' | 'social' | 'gallery'>('about');
+  const [categoryFilter, setCategoryFilter] = useState('All');
   const [results, setResults] = useState<Result[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardTeam[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,9 +67,9 @@ const FestHome = () => {
       <div className="fixed top-[20%] left-[40%] w-[30vw] h-[30vw] rounded-full bg-emerald-900/10 mix-blend-screen filter blur-[80px] animate-blob animation-delay-4000 z-0 pointer-events-none"></div>
 
       {/* Top Navigation */}
-      <div className="absolute top-0 right-0 p-6 z-50">
-        <a href="/fest/login" className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-full text-sm font-semibold transition-all">
-          Staff Login
+      <div className="absolute top-0 right-0 p-4 sm:p-6 z-50 flex items-center gap-2">
+        <a href="/fest/login" className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-full text-xs sm:text-sm font-semibold transition-all">
+          Team Login
         </a>
       </div>
 
@@ -80,16 +81,19 @@ const FestHome = () => {
           <div className="absolute inset-0 bg-gradient-to-r from-[#0a0f1c]/80 via-transparent to-[#0a0f1c]/80" />
         </div>
         
-        <div className="relative z-10 text-center px-4 max-w-4xl mx-auto mt-24">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 backdrop-blur-md border border-amber-500/30 text-xs font-bold tracking-widest uppercase text-amber-400 mb-8 animate-fade-in-up">
+        <div className="relative z-10 text-center px-4 max-w-4xl mx-auto mt-20 sm:mt-24">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 backdrop-blur-md border border-amber-500/30 text-xs font-bold tracking-widest uppercase text-amber-400 mb-6 sm:mb-8 animate-fade-in-up">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.8)]"></span>
             Alif Dawa College Annual Fest
           </div>
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tighter mb-6 text-white drop-shadow-2xl">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tighter mb-3 text-white drop-shadow-2xl">
             The Ultimate <br/>
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 animate-gradient-x inline-block mt-2">Stage of Talent</span>
           </h1>
-          <p className="text-lg md:text-xl text-slate-300 mb-10 max-w-2xl mx-auto font-light leading-relaxed">
+          <p className="text-base sm:text-lg text-amber-200/60 mb-2 font-medium" dir="rtl" lang="ml">
+            കലയുടെയും സംസ്കാരത്തിന്റെയും ഉത്സവം
+          </p>
+          <p className="text-base sm:text-lg md:text-xl text-slate-300 mb-8 sm:mb-10 max-w-2xl mx-auto font-light leading-relaxed">
             Experience the pinnacle of arts, culture, and intellect. Watch live updates, discover results, and celebrate the champions.
           </p>
 
@@ -155,60 +159,101 @@ const FestHome = () => {
           <div className="animate-fade-in">
             {/* ABOUT TAB */}
             {activeTab === 'about' && (
-              <div className="space-y-12 relative z-10 animate-fade-in-up">
-                <div className="flex items-center gap-4 mb-10 justify-center">
+              <div className="space-y-10 relative z-10 animate-fade-in-up">
+                <div className="flex items-center gap-4 mb-8 justify-center">
                   <div className="relative">
                     <Info className="text-amber-400 relative z-10" size={32} />
                     <div className="absolute inset-0 bg-amber-400 rounded-full blur-md animate-pulse opacity-50"></div>
                   </div>
-                  <h2 className="text-3xl md:text-4xl font-extrabold text-white">About the Fest</h2>
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white">അലിഫ് ദഅവ ഫെസ്റ്റ്</h2>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-8">
-                  <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
-                    <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-3">
-                      <Star className="text-amber-400" /> Our Vision
+                <div className="grid md:grid-cols-2 gap-6 sm:gap-8">
+                  <div className="bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl p-6 sm:p-8 backdrop-blur-xl">
+                    <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 flex items-center gap-3">
+                      <Star className="text-amber-400 flex-shrink-0" /> Our Vision
                     </h3>
-                    <p className="text-slate-300 leading-relaxed text-lg font-light">
-                      Alif Dawa College Annual Fest is a celebration of talent, creativity, and unity. We aim to provide a platform for students to showcase their skills in arts, culture, and intellect, fostering a spirit of healthy competition and camaraderie among the teams.
+                    <p className="text-slate-300 leading-relaxed text-base sm:text-lg font-light mb-4">
+                      Alif Dawa College Annual Fest is a celebration of talent, creativity, and unity. We aim to provide a platform for students to showcase their skills in arts, culture, and intellect.
+                    </p>
+                    <p className="text-slate-400 leading-relaxed text-sm" dir="rtl" lang="ml">
+                      അലിഫ് ദഅവ കോളേജ് വാര്‍ഷിക ഫെസ്റ്റ് കലയുടെയും സര്‍ഗാത്മകതയുടെയും ഏകത്വത്തിന്റെയും ആഘോഷമാണ്. വിദ്യാര്‍ത്ഥികള്‍ക്ക് തങ്ങളുടെ കഴിവുകള്‍ പ്രദര്‍ശിപ്പിക്കാനുള്ള ഒരു വേദിയാണ് ഇത്.
                     </p>
                   </div>
-                  <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
-                    <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-3">
-                      <Users className="text-blue-400" /> The Teams
+                  <div className="bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl p-6 sm:p-8 backdrop-blur-xl">
+                    <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 flex items-center gap-3">
+                      <Users className="text-blue-400 flex-shrink-0" /> The Teams
                     </h3>
-                    <p className="text-slate-300 leading-relaxed text-lg font-light mb-4">
-                      The fest is fiercely contested by three magnificent teams, each led by dedicated student leaders:
+                    <p className="text-slate-300 leading-relaxed text-base sm:text-lg font-light mb-4">
+                      The fest is fiercely contested by three magnificent teams:
                     </p>
                     <ul className="space-y-3">
-                      <li className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-amber-500"></span><strong className="text-white">Vanguard</strong> - Leading the way</li>
-                      <li className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-slate-300"></span><strong className="text-white">Renegades</strong> - Defying limits</li>
-                      <li className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-orange-500"></span><strong className="text-white">Divergent</strong> - Thinking differently</li>
+                      <li className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-amber-500"></span><strong className="text-white">Vanguard</strong><span className="text-slate-400">- Leading the way</span></li>
+                      <li className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-slate-300"></span><strong className="text-white">Renegades</strong><span className="text-slate-400">- Defying limits</span></li>
+                      <li className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-orange-500"></span><strong className="text-white">Divergent</strong><span className="text-slate-400">- Thinking differently</span></li>
                     </ul>
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-white/10 rounded-3xl p-10 text-center backdrop-blur-xl">
-                  <h3 className="text-2xl font-bold text-white mb-4">Join the Celebration</h3>
-                  <p className="text-slate-300 text-lg mb-8 max-w-2xl mx-auto">
-                    Be a part of the most awaited event of the year. Witness breathtaking performances, cheer for your team, and create memories that will last a lifetime.
+                {/* Categories */}
+                <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { name: 'Premier', nameml: 'പ്രീമിയര്‍', color: 'from-amber-500/20 to-amber-600/10 border-amber-500/30', text: 'text-amber-400' },
+                    { name: 'Senior', nameml: 'സീനിയര്‍', color: 'from-blue-500/20 to-blue-600/10 border-blue-500/30', text: 'text-blue-400' },
+                    { name: 'Junior', nameml: 'ജൂനിയര്‍', color: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/30', text: 'text-emerald-400' },
+                    { name: 'General', nameml: 'ജനറല്‍', color: 'from-purple-500/20 to-purple-600/10 border-purple-500/30', text: 'text-purple-400' },
+                  ].map(cat => (
+                    <div key={cat.name} className={`bg-gradient-to-br ${cat.color} border rounded-2xl p-5 backdrop-blur-xl text-center`}>
+                      <BookOpen className={`mx-auto mb-2 ${cat.text}`} size={24} />
+                      <p className={`font-bold text-lg ${cat.text}`}>{cat.name}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{cat.nameml}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Rules */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl p-6 sm:p-8 backdrop-blur-xl">
+                  <h3 className="text-xl sm:text-2xl font-bold text-white mb-5 flex items-center gap-3">
+                    <Shield className="text-emerald-400 flex-shrink-0" /> Rules & Guidelines
+                  </h3>
+                  <div className="grid sm:grid-cols-2 gap-6">
+                    <ul className="space-y-3 text-sm text-slate-300">
+                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>Every participant must carry their chest number at all times</li>
+                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>Report to the stage when your program is called</li>
+                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>Time limits must be strictly followed</li>
+                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>Code letters are assigned for fair judging</li>
+                    </ul>
+                    <ul className="space-y-3 text-sm text-slate-400" dir="rtl" lang="ml">
+                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0"></span>മത്സരികള്‍ക്ക് എല്ലാ സമയത്തും ചെസ്റ്റ് നമ്പര്‍ ഉണ്ടായിരിക്കണം</li>
+                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0"></span>പ്രോഗ്രാം വിളിക്കുമ്പോള്‍ സ്റ്റേജില്‍ ഹാജരാകുക</li>
+                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0"></span>സമയപരിധി കാര്‍യമായി പാലിക്കണം</li>
+                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0"></span>ന്യായമായ മൂല്യനിര്‍ണയത്തിന് കോഡ് ലെറ്ററുകള്‍ നല്‍കുന്നു</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Stats */}
+                <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-white/10 rounded-2xl sm:rounded-3xl p-8 sm:p-10 text-center backdrop-blur-xl">
+                  <h3 className="text-xl sm:text-2xl font-bold text-white mb-4">ആഘോഷത്തിന്റെ ഭാഗമാകൂ</h3>
+                  <p className="text-slate-300 text-base sm:text-lg mb-8 max-w-2xl mx-auto">
+                    Be a part of the most awaited event of the year. Witness breathtaking performances and create lasting memories.
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 max-w-3xl mx-auto">
                     <div className="text-center">
-                      <div className="text-4xl font-black text-amber-400 mb-2">3</div>
-                      <div className="text-sm text-slate-400 uppercase tracking-widest">Teams</div>
+                      <div className="text-3xl sm:text-4xl font-black text-amber-400 mb-2">3</div>
+                      <div className="text-xs sm:text-sm text-slate-400 uppercase tracking-widest">Teams</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-4xl font-black text-emerald-400 mb-2">50+</div>
-                      <div className="text-sm text-slate-400 uppercase tracking-widest">Events</div>
+                      <div className="text-3xl sm:text-4xl font-black text-emerald-400 mb-2">50+</div>
+                      <div className="text-xs sm:text-sm text-slate-400 uppercase tracking-widest">Events</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-4xl font-black text-blue-400 mb-2">300+</div>
-                      <div className="text-sm text-slate-400 uppercase tracking-widest">Participants</div>
+                      <div className="text-3xl sm:text-4xl font-black text-blue-400 mb-2">300+</div>
+                      <div className="text-xs sm:text-sm text-slate-400 uppercase tracking-widest">Participants</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-4xl font-black text-purple-400 mb-2">1</div>
-                      <div className="text-sm text-slate-400 uppercase tracking-widest">Champion</div>
+                      <div className="text-3xl sm:text-4xl font-black text-purple-400 mb-2">4</div>
+                      <div className="text-xs sm:text-sm text-slate-400 uppercase tracking-widest">Categories</div>
                     </div>
                   </div>
                 </div>
@@ -217,18 +262,35 @@ const FestHome = () => {
 
             {/* RESULTS TAB */}
             {activeTab === 'results' && (
-              <div className="space-y-8 relative z-10">
-                <div className="flex items-center gap-4 mb-10 justify-center">
+              <div className="space-y-6 relative z-10">
+                <div className="flex items-center gap-4 mb-6 justify-center">
                   <div className="relative">
                     <Award className="text-amber-400 relative z-10" size={32} />
                     <div className="absolute inset-0 bg-amber-400 rounded-full blur-md animate-pulse opacity-50"></div>
                   </div>
-                  <h2 className="text-3xl md:text-4xl font-extrabold text-white">Published Results</h2>
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white">Published Results</h2>
                 </div>
 
-                <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-                  {results.map((res) => (
-                    <div key={res.id} className="group relative rounded-3xl transition-all duration-500 hover:-translate-y-2 overflow-hidden bg-white/5 border border-white/10 backdrop-blur-xl">
+                {/* Category Filter */}
+                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                  {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => setCategoryFilter(cat)}
+                      className={`px-4 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all ${
+                        categoryFilter === cat
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-3">
+                  {results.filter(r => categoryFilter === 'All' || r.category === categoryFilter).map((res) => (
+                    <div key={res.id} className="group relative rounded-2xl sm:rounded-3xl transition-all duration-500 hover:-translate-y-2 overflow-hidden bg-white/5 border border-white/10 backdrop-blur-xl">
                       <div className={`absolute -top-24 -right-24 w-48 h-48 rounded-full mix-blend-screen filter blur-[50px] opacity-50 transition-opacity group-hover:opacity-100 ${
                         res.position === 1 ? 'bg-amber-500' :
                         res.position === 2 ? 'bg-slate-300' :
@@ -266,9 +328,9 @@ const FestHome = () => {
                       </div>
                     </div>
                   ))}
-                  {results.length === 0 && (
-                    <div className="col-span-full text-center py-20 bg-white/5 border border-white/5 rounded-3xl backdrop-blur-sm">
-                      <p className="text-slate-400 text-lg">Results will be published here soon.</p>
+                  {results.filter(r => categoryFilter === 'All' || r.category === categoryFilter).length === 0 && (
+                    <div className="col-span-full text-center py-16 sm:py-20 bg-white/5 border border-white/5 rounded-2xl sm:rounded-3xl backdrop-blur-sm">
+                      <p className="text-slate-400 text-base sm:text-lg">No results found{categoryFilter !== 'All' ? ` for ${categoryFilter} category` : ''}.</p>
                     </div>
                   )}
                 </div>

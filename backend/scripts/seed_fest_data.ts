@@ -80,10 +80,30 @@ async function seed() {
     await pool.query('DELETE FROM fest_teams'); // Cascades to leaders
     await pool.query("DELETE FROM students WHERE admission_number LIKE 'ADM-%'");
 
-    // Get the leader role ID
+    // Get role IDs
     const roleRes = await pool.query(`SELECT id FROM roles WHERE name = 'leader'`);
     const leaderRoleId = roleRes.rows[0].id;
     const defaultPassword = await bcrypt.hash('123456', 10);
+
+    // Create staff roles & accounts if they don't exist
+    const staffRoles = ['stage_admin', 'judge', 'green_room', 'announcer'];
+    for (const rName of staffRoles) {
+      await pool.query(`INSERT INTO roles (name) VALUES ($1) ON CONFLICT (name) DO NOTHING;`, [rName]);
+      const sRoleRes = await pool.query(`SELECT id FROM roles WHERE name = $1`, [rName]);
+      const sRoleId = sRoleRes.rows[0].id;
+
+      const staffUsernames = rName === 'judge' ? ['judge1', 'judge2'] : [rName];
+      for (const sUsername of staffUsernames) {
+        const uCheck = await pool.query('SELECT id FROM users WHERE username = $1', [sUsername]);
+        if (uCheck.rows.length === 0) {
+          await pool.query(
+            `INSERT INTO users (username, password_hash, role_id) VALUES ($1, $2, $3)`,
+            [sUsername, defaultPassword, sRoleId]
+          );
+          console.log(`  - Created Staff Account: ${sUsername} (Password: 123456)`);
+        }
+      }
+    }
 
     let admCounter = 1000;
 
@@ -96,13 +116,36 @@ async function seed() {
         [team.name, team.startChest]
       );
       const teamId = teamRes.rows[0].id;
+
+      // Create primary Team account (e.g., 'vanguard' and 'team_vanguard')
+      const teamUsernames = [
+        team.name.toLowerCase().replace(/\s+/g, ''),
+        `team_${team.name.toLowerCase().replace(/\s+/g, '')}`
+      ];
+
+      for (const tUsername of teamUsernames) {
+        let teamUserId;
+        const uCheck = await pool.query('SELECT id FROM users WHERE username = $1', [tUsername]);
+        if (uCheck.rows.length > 0) {
+          teamUserId = uCheck.rows[0].id;
+        } else {
+          const uRes = await pool.query(
+            `INSERT INTO users (username, password_hash, role_id) VALUES ($1, $2, $3) RETURNING id`,
+            [tUsername, defaultPassword, leaderRoleId]
+          );
+          teamUserId = uRes.rows[0].id;
+        }
+        await pool.query(
+          `INSERT INTO fest_team_leaders (user_id, fest_team_id, is_first_leader) VALUES ($1, $2, true) ON CONFLICT DO NOTHING`,
+          [teamUserId, teamId]
+        );
+        console.log(`  - Created Team Login: ${tUsername} (Password: 123456)`);
+      }
       
       // Insert Leaders
       for (const leader of team.leaders) {
-        // Ensure username is unique
-        const username = leader.name.toLowerCase().replace(/\\s+/g, '') + '_leader';
+        const username = leader.name.toLowerCase().replace(/\s+/g, '') + '_leader';
         
-        // Check if user exists
         let userId;
         const userCheck = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
         if (userCheck.rows.length > 0) {
@@ -115,12 +158,11 @@ async function seed() {
           userId = userRes.rows[0].id;
         }
 
-        // Link leader to team
         await pool.query(
-          `INSERT INTO fest_team_leaders (user_id, fest_team_id, is_first_leader) VALUES ($1, $2, $3)`,
+          `INSERT INTO fest_team_leaders (user_id, fest_team_id, is_first_leader) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
           [userId, teamId, leader.is_first]
         );
-        console.log(`  - Added Leader: ${username}`);
+        console.log(`  - Linked Leader Account: ${username}`);
       }
 
       let chestNum = team.startChest;
@@ -133,7 +175,6 @@ async function seed() {
 
       for (const cat of categories) {
         for (const studentName of cat.participants) {
-          // Create student
           const adm = `ADM-${admCounter++}`;
           const studRes = await pool.query(
             `INSERT INTO students (admission_number, name) VALUES ($1, $2) RETURNING id`,
@@ -141,7 +182,6 @@ async function seed() {
           );
           const studentId = studRes.rows[0].id;
 
-          // Create fest participant with category
           await pool.query(
             `INSERT INTO fest_participants (student_id, fest_team_id, category, chest_number) VALUES ($1, $2, $3, $4)`,
             [studentId, teamId, cat.name, chestNum.toString()]

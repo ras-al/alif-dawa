@@ -28,7 +28,7 @@ export default function AdminFestDashboard() {
 
   type TabType = typeof tabs[number]['id'];
   const [activeTab, setActiveTab] = useState<TabType>('overview');
-  
+  const [categoryFilter, setCategoryFilter] = useState('All');
   // Forms state
   const [newProgram, setNewProgram] = useState({ title: '', category: 'Premier', type: 'stage', max_judges: 3 });
   const [newTeam, setNewTeam] = useState({ name: '', chest_number_start: 100 });
@@ -347,7 +347,16 @@ export default function AdminFestDashboard() {
                 </form>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm overflow-x-auto">
+                {/* Category Filter */}
+                <div className="flex flex-wrap gap-2 p-4 border-b border-slate-100">
+                  {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+                    <button key={cat} onClick={() => setCategoryFilter(cat)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                      {cat}
+                    </button>
+                  ))}
+                </div>
                 <table className="w-full text-sm text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
@@ -358,7 +367,7 @@ export default function AdminFestDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {programs.map((p: any) => (
+                    {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
                       <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4 font-medium text-slate-900">{p.title}</td>
                         <td className="px-6 py-4 text-slate-600"><span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium">{p.category}</span></td>
@@ -370,7 +379,7 @@ export default function AdminFestDashboard() {
                         </td>
                       </tr>
                     ))}
-                    {programs.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">No programs found. Create your first one above!</td></tr>}
+                    {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">No programs{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''} found.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -479,7 +488,7 @@ export default function AdminFestDashboard() {
                       <option value="stage_admin">Stage Admin</option>
                       <option value="green_room">Green Room</option>
                       <option value="announcer">Announcer</option>
-                      <option value="leader">Team Leader</option>
+                      <option value="leader">Team Login</option>
                     </select>
                   </div>
                   <button type="submit" className="bg-[#14532D] text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#14532D]/90 transition-all shadow-sm">
@@ -532,7 +541,7 @@ export default function AdminFestDashboard() {
               {/* Leader Team Assignment */}
               {festUsers.some((u: any) => u.role === 'leader') && (
                 <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 mt-8">
-                  <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wide">Assign Leader to Team</h3>
+                  <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wide">Assign Team Account to Team</h3>
                   <form onSubmit={async (e) => {
                     e.preventDefault();
                     try {
@@ -545,9 +554,9 @@ export default function AdminFestDashboard() {
                     }
                   }} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Leader Account</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Team Account</label>
                       <select required value={leaderAssign.user_id} onChange={e => setLeaderAssign({...leaderAssign, user_id: e.target.value})} className="border border-slate-300 rounded-lg px-4 py-2.5 text-sm w-full bg-white focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none transition-all">
-                        <option value="">Select a Leader</option>
+                        <option value="">Select Account</option>
                         {festUsers.filter((u: any) => u.role === 'leader').map((u: any) => <option key={u.id} value={u.id}>{u.username}</option>)}
                       </select>
                     </div>

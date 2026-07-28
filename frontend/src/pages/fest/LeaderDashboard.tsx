@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, Users, Trophy, Activity, Award, Zap, TrendingUp, Radio, ChevronRight, ClipboardEdit, Check, X, Download, Loader2 } from 'lucide-react';
+import { Bell, Users, Trophy, Activity, Award, Zap, TrendingUp, Radio, ChevronRight, ClipboardEdit, Check, X, Download, Loader2, Filter } from 'lucide-react';
 import api from '../../api/client';
 import { usePosterGenerator } from '../../components/ResultPosterGenerator';
 
@@ -42,6 +42,7 @@ export default function LeaderDashboard() {
   const [loadingPrograms, setLoadingPrograms] = useState(false);
   const [manageProgram, setManageProgram] = useState<any | null>(null);
   const [selectedParticipants, setSelectedParticipants] = useState<number[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState('All');
   const notifIdRef = useRef(0);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -208,16 +209,16 @@ export default function LeaderDashboard() {
   return (
     <div className="max-w-7xl mx-auto pb-12">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-6 sm:mb-8 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Team {data.team.name}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Team {data.team.name}</h1>
             <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${data.team.is_first_leader ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
               }`}>
-              {data.team.is_first_leader ? '1st Leader' : '2nd Leader'}
+              {data.team.is_first_leader ? 'Captain' : 'Vice Captain'}
             </span>
           </div>
-          <p className="text-slate-500 text-sm">Leader Dashboard - Real-time team tracking</p>
+          <p className="text-slate-500 text-sm">Team Dashboard - Real-time tracking</p>
         </div>
         <div className="flex items-center gap-3">
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${connected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
@@ -229,34 +230,34 @@ export default function LeaderDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2.5 bg-amber-50 rounded-xl text-amber-600"><Trophy size={22} /></div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-2 sm:mb-3">
+            <div className="p-2 sm:p-2.5 bg-amber-50 rounded-xl text-amber-600"><Trophy size={20} /></div>
           </div>
-          <p className="text-3xl font-black text-slate-900">{data.team.total_points}</p>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">Total Points</p>
+          <p className="text-2xl sm:text-3xl font-black text-slate-900">{data.team.total_points}</p>
+          <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">Total Points</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600"><Users size={22} /></div>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-2 sm:mb-3">
+            <div className="p-2 sm:p-2.5 bg-blue-50 rounded-xl text-blue-600"><Users size={20} /></div>
           </div>
-          <p className="text-3xl font-black text-slate-900">{data.participants.length}</p>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">Participants</p>
+          <p className="text-2xl sm:text-3xl font-black text-slate-900">{data.participants.length}</p>
+          <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">Participants</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600"><Award size={22} /></div>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-2 sm:mb-3">
+            <div className="p-2 sm:p-2.5 bg-emerald-50 rounded-xl text-emerald-600"><Award size={20} /></div>
           </div>
-          <p className="text-3xl font-black text-slate-900">{data.results.length}</p>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">Results Won</p>
+          <p className="text-2xl sm:text-3xl font-black text-slate-900">{data.results.length}</p>
+          <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">Results Won</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2.5 bg-purple-50 rounded-xl text-purple-600"><TrendingUp size={22} /></div>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-2 sm:mb-3">
+            <div className="p-2 sm:p-2.5 bg-purple-50 rounded-xl text-purple-600"><TrendingUp size={20} /></div>
           </div>
-          <p className="text-3xl font-black text-slate-900">#{teamRank || '—'}</p>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">Team Rank</p>
+          <p className="text-2xl sm:text-3xl font-black text-slate-900">#{teamRank || '-'}</p>
+          <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">Team Rank</p>
         </div>
       </div>
 
@@ -366,11 +367,11 @@ export default function LeaderDashboard() {
 
       {/* Tab Navigation */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex overflow-x-auto hide-scrollbar border-b border-slate-100">
+        <div className="flex overflow-x-auto no-scrollbar hide-scrollbar border-b border-slate-100">
           {([
             { id: 'overview', label: 'Overview', icon: Activity },
             { id: 'registration', label: 'Registration', icon: ClipboardEdit },
-            { id: 'participants', label: 'Team Members', icon: Users },
+            { id: 'participants', label: 'Members', icon: Users },
             { id: 'results', label: 'Results', icon: Award },
             { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
           ] as const).map(tab => {
@@ -380,10 +381,10 @@ export default function LeaderDashboard() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors relative whitespace-nowrap ${isActive ? 'text-[#14532D] bg-emerald-50/50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                className={`flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-3.5 sm:py-4 text-xs sm:text-sm font-medium transition-colors relative whitespace-nowrap ${isActive ? 'text-[#14532D] bg-emerald-50/50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
               >
-                <Icon size={18} className={isActive ? 'text-[#14532D]' : 'text-slate-400'} />
+                <Icon size={16} className={isActive ? 'text-[#14532D]' : 'text-slate-400'} />
                 {tab.label}
                 {isActive && (
                   <span className="absolute bottom-0 left-0 w-full h-0.5 bg-[#14532D] rounded-t-full" />
@@ -449,6 +450,15 @@ export default function LeaderDashboard() {
           {activeTab === 'registration' && (
             <div>
               <h3 className="text-lg font-bold text-slate-900 mb-4">Event Registration</h3>
+              {/* Category Filter */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+                  <button key={cat} onClick={() => setCategoryFilter(cat)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                    {cat}
+                  </button>
+                ))}
+              </div>
               {loadingPrograms ? (
                 <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#14532D]"></div></div>
               ) : (
@@ -463,7 +473,7 @@ export default function LeaderDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {programs.map(p => {
+                      {programs.filter((p: any) => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => {
                         const registeredCount = p.registered_participants.length;
                         const limitText = p.team_limit === null ? 'No Limit' : p.team_limit;
                         const isFull = p.team_limit !== null && registeredCount >= p.team_limit;
@@ -498,8 +508,8 @@ export default function LeaderDashboard() {
                           </tr>
                         );
                       })}
-                      {programs.length === 0 && (
-                        <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">No programs available for registration.</td></tr>
+                      {programs.filter((p: any) => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && (
+                        <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">No programs found{categoryFilter !== 'All' ? ` in ${categoryFilter} category` : ''}.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -540,6 +550,15 @@ export default function LeaderDashboard() {
           {activeTab === 'results' && (
             <div>
               <h3 className="text-lg font-bold text-slate-900 mb-4">Team Results ({data.results.length})</h3>
+              {/* Category Filter */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+                  <button key={cat} onClick={() => setCategoryFilter(cat)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                    {cat}
+                  </button>
+                ))}
+              </div>
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
@@ -553,7 +572,7 @@ export default function LeaderDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {data.results.map((r, i) => (
+                    {data.results.filter(r => categoryFilter === 'All' || r.category === categoryFilter).map((r, i) => (
                       <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${r.position === 1 ? 'bg-amber-100 text-amber-700' :
@@ -579,8 +598,8 @@ export default function LeaderDashboard() {
                         )}
                       </tr>
                     ))}
-                    {data.results.length === 0 && (
-                      <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">No results published yet for your team.</td></tr>
+                    {data.results.filter(r => categoryFilter === 'All' || r.category === categoryFilter).length === 0 && (
+                      <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">No results{categoryFilter !== 'All' ? ` in ${categoryFilter} category` : ''} yet.</td></tr>
                     )}
                   </tbody>
                 </table>

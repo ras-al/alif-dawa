@@ -7,6 +7,7 @@ export default function JudgeDashboard() {
   const [selectedProgram, setSelectedProgram] = useState<any>(null);
   const [participants, setParticipants] = useState([]);
   const [marks, setMarks] = useState<Record<number, string>>({});
+  const [categoryFilter, setCategoryFilter] = useState('All');
   
   useEffect(() => {
     async function fetchPrograms() {
@@ -60,14 +61,25 @@ export default function JudgeDashboard() {
       </div>
 
       {!selectedProgram ? (
-        <div className="grid sm:grid-cols-2 gap-4">
-          {programs.map((p: any) => (
+        <div>
+          {/* Category Filter */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+              <button key={cat} onClick={() => setCategoryFilter(cat)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                {cat}
+              </button>
+            ))}
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+          {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
             <div key={p.id} onClick={() => handleSelect(p)} className="bg-white p-6 rounded-xl border border-slate-200 cursor-pointer hover:border-[#14532D] hover:shadow-md transition-all">
               <h3 className="font-bold text-lg text-slate-900 mb-1">{p.title}</h3>
               <p className="text-sm text-slate-500">{p.category} • {p.type}</p>
             </div>
           ))}
-          {programs.length === 0 && <p className="text-slate-500">No programs assigned to you.</p>}
+          {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && <p className="text-slate-500 col-span-2">No programs{categoryFilter !== 'All' ? ` in ${categoryFilter} category` : ''} assigned to you.</p>}
+          </div>
         </div>
       ) : (
         <div>
@@ -93,7 +105,7 @@ export default function JudgeDashboard() {
                       placeholder="Marks" 
                       value={marks[p.registration_id] || ''}
                       onChange={(e) => handleMarkChange(p.registration_id, e.target.value)}
-                      className="w-24 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#14532D]"
+                      className="w-20 sm:w-24 px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D]"
                     />
                     <button 
                       onClick={() => submitMark(p.registration_id)}

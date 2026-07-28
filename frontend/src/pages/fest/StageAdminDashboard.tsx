@@ -6,6 +6,7 @@ export default function StageAdminDashboard() {
   const [programs, setPrograms] = useState([]);
   const [expandedProgramId, setExpandedProgramId] = useState<number | null>(null);
   const [participants, setParticipants] = useState<any[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState('All');
   
   const fetchPrograms = async () => {
     try {
@@ -97,7 +98,17 @@ export default function StageAdminDashboard() {
         </ul>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* Category Filter */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+          <button key={cat} onClick={() => setCategoryFilter(cat)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
         <table className="w-full text-sm text-left">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
@@ -108,7 +119,7 @@ export default function StageAdminDashboard() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {programs.map((p: any) => (
+            {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
               <React.Fragment key={p.id}>
                 <tr className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-6 py-4 font-medium text-slate-900">{p.title}</td>
@@ -122,7 +133,8 @@ export default function StageAdminDashboard() {
                       {p.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right flex items-center justify-end gap-4">
+                  <td className="px-4 sm:px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2 sm:gap-4 flex-wrap">
                     {p.status === 'scheduled' && (
                       <>
                         <button onClick={() => handleToggleCall(p)} title={p.is_called ? "Revoke Call" : "Call Participants"} className={`${p.is_called ? 'text-rose-600 hover:text-rose-700' : 'text-indigo-600 hover:text-indigo-700'} font-semibold flex items-center gap-1.5`}>
@@ -140,9 +152,10 @@ export default function StageAdminDashboard() {
                     {p.status === 'completed' && (
                       <button onClick={() => handleSetStatus(p.id, 'scheduled')} className="text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1.5"><RefreshCw size={16} /> Reset</button>
                     )}
-                    <button onClick={() => handleToggleParticipants(p.id)} className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
+                    <button onClick={() => handleToggleParticipants(p.id)} className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 text-sm">
                       Participants {expandedProgramId === p.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </button>
+                    </div>
                   </td>
                 </tr>
                 
@@ -188,7 +201,7 @@ export default function StageAdminDashboard() {
                 )}
               </React.Fragment>
             ))}
-            {programs.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">No stage programs available.</td></tr>}
+            {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">No stage programs{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''} available.</td></tr>}
           </tbody>
         </table>
       </div>

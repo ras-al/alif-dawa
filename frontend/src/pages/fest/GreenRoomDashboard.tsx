@@ -6,6 +6,7 @@ export default function GreenRoomDashboard() {
   const [pendingPrograms, setPendingPrograms] = useState([]);
   const [selectedProgram, setSelectedProgram] = useState<any>(null);
   const [marksData, setMarksData] = useState([]);
+  const [categoryFilter, setCategoryFilter] = useState('All');
 
   useEffect(() => {
     async function loadPending() {
@@ -67,6 +68,16 @@ export default function GreenRoomDashboard() {
       </div>
       
       {!selectedProgram ? (
+        <div>
+          {/* Category Filter */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+              <button key={cat} onClick={() => setCategoryFilter(cat)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                {cat}
+              </button>
+            ))}
+          </div>
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 text-left">
@@ -77,7 +88,7 @@ export default function GreenRoomDashboard() {
               </tr>
             </thead>
             <tbody>
-              {pendingPrograms.map((p: any) => (
+              {(pendingPrograms as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
                 <tr key={p.id} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-3 font-medium">{p.title}</td>
                   <td className="px-4 py-3 text-slate-500">{p.category}</td>
@@ -88,13 +99,14 @@ export default function GreenRoomDashboard() {
                   </td>
                 </tr>
               ))}
-              {pendingPrograms.length === 0 && (
+              {(pendingPrograms as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-slate-500">No programs pending verification.</td>
+                  <td colSpan={3} className="px-4 py-6 text-center text-slate-500">No programs{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''} pending verification.</td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
         </div>
       ) : (
         <div>

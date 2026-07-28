@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, LogIn, AlertCircle, Calendar } from 'lucide-react';
+import { Eye, EyeOff, LogIn, AlertCircle, Users } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function FestLogin() {
@@ -49,28 +49,31 @@ export default function FestLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#14532D]/10 text-[#14532D] mb-4">
-          <Calendar size={24} />
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#14532D]/10 text-[#14532D] mb-5">
+          <Users size={26} />
         </div>
         <h1 className="text-center text-2xl font-bold text-slate-900">Alif Dawa Fest Portal</h1>
-        <p className="mt-1 text-center text-sm text-slate-500">Staff & Judge Login</p>
+        <p className="mt-1.5 text-center text-sm text-slate-500">Team & Staff Login</p>
+        <p className="mt-0.5 text-center text-xs text-slate-400" dir="rtl" lang="ml">
+          ടീം / സ്റ്റാഫ് ലോഗിന്‍
+        </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 border border-slate-200 rounded-lg sm:px-10">
+        <div className="bg-white py-8 px-6 border border-slate-200 rounded-2xl sm:px-10 shadow-sm">
           
           {error && (
-            <div className="mb-4 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
+            <div className="mb-4 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
               <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
               <p className="text-sm text-red-700">{error}</p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="login-username" className="block text-sm font-medium text-slate-700 mb-1">
+              <label htmlFor="login-username" className="block text-sm font-medium text-slate-700 mb-1.5">
                 Username
               </label>
               <input
@@ -80,14 +83,14 @@ export default function FestLogin() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm placeholder-slate-400
-                  focus:outline-none focus:ring-1 focus:ring-[#14532D] focus:border-[#14532D]"
+                className="block w-full px-4 py-3 border border-slate-300 rounded-xl text-sm placeholder-slate-400
+                  focus:outline-none focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] transition-all"
                 placeholder="Enter your assigned username"
               />
             </div>
 
             <div>
-              <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 mb-1">
+              <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 mb-1.5">
                 Password
               </label>
               <div className="relative">
@@ -98,14 +101,14 @@ export default function FestLogin() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm placeholder-slate-400
-                    focus:outline-none focus:ring-1 focus:ring-[#14532D] focus:border-[#14532D] pr-10"
+                  className="block w-full px-4 py-3 border border-slate-300 rounded-xl text-sm placeholder-slate-400
+                    focus:outline-none focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] pr-12 transition-all"
                   placeholder="Enter your password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" aria-hidden="true" />
@@ -119,9 +122,9 @@ export default function FestLogin() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-2 px-4 text-sm font-medium text-white
-                bg-[#14532D] rounded-md hover:bg-[#166534] focus:outline-none focus:ring-2 focus:ring-offset-2
-                focus:ring-[#14532D] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 text-sm font-semibold text-white
+                bg-[#14532D] rounded-xl hover:bg-[#166534] focus:outline-none focus:ring-2 focus:ring-offset-2
+                focus:ring-[#14532D] disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
             >
               {loading ? (
                 <span>Authenticating...</span>
