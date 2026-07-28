@@ -53,7 +53,12 @@ function sendToTeamLeaders(teamId: number, data: object) {
 router.get('/public/programs', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, title, category, type, status, is_called FROM fest_programs ORDER BY id ASC`
+      `SELECT p.id, p.title, p.category, p.type, p.status, p.is_called,
+              COUNT(r.id)::int as registered_count
+       FROM fest_programs p
+       LEFT JOIN fest_registrations r ON r.fest_program_id = p.id
+       GROUP BY p.id
+       ORDER BY p.id ASC`
     );
     res.json(rows);
   } catch (err: any) {
@@ -122,16 +127,26 @@ router.post('/public/pick-code', async (req, res) => {
       return res.json({ code_letter: reg.rows[0].code_letter });
     }
 
-    // Generate a code letter A, B, C, D...
+    // Generate a random code letter from available pool (constrained to first N letters for N participants)
+    const countRes = await pool.query(`SELECT COUNT(*)::int as total FROM fest_registrations WHERE fest_program_id = $1`, [program_id]);
+    const totalCount = countRes.rows[0].total || 1;
+
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    const validLetters = totalCount <= 26 ? letters.slice(0, Math.max(totalCount, 1)) : letters;
+
     const usedCodes = await pool.query(`SELECT code_letter FROM fest_registrations WHERE fest_program_id = $1 AND code_letter IS NOT NULL`, [program_id]);
     const used = new Set(usedCodes.rows.map(r => r.code_letter));
     
-    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const available = validLetters.filter(l => !used.has(l));
+    
     let newCode = null;
-    for (let i = 0; i < letters.length; i++) {
-      if (!used.has(letters[i])) {
-        newCode = letters[i];
-        break;
+    if (available.length > 0) {
+      const randomIndex = Math.floor(Math.random() * available.length);
+      newCode = available[randomIndex];
+    } else {
+      const fallbackAvailable = letters.filter(l => !used.has(l));
+      if (fallbackAvailable.length > 0) {
+        newCode = fallbackAvailable[Math.floor(Math.random() * fallbackAvailable.length)];
       }
     }
     if (!newCode) return res.status(500).json({ error: 'Ran out of code letters' });
@@ -601,28 +616,34 @@ router.post('/stage-admin/generate-code', authorize('stage_admin', 'admin'), asy
     const programId = regRes.rows[0].fest_program_id;
     const participantId = regRes.rows[0].fest_participant_id;
     
+    // Query total registered count for this program to constrain code pool to first N letters
+    const countRes = await pool.query(`SELECT COUNT(*)::int as total FROM fest_registrations WHERE fest_program_id = $1`, [programId]);
+    const totalCount = countRes.rows[0].total || 1;
+
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    const validLetters = totalCount <= 26 ? letters.slice(0, Math.max(totalCount, 1)) : letters;
+
     // Get assigned letters
     const assignedRes = await pool.query(
       `SELECT code_letter FROM fest_registrations WHERE fest_program_id = $1 AND code_letter IS NOT NULL`,
       [programId]
     );
-    const assigned = assignedRes.rows.map(r => r.code_letter);
+    const assigned = new Set(assignedRes.rows.map(r => r.code_letter));
     
-    // Generate new letter (A-Z, AA-ZZ)
+    const available = validLetters.filter(l => !assigned.has(l));
+    
     let code_letter = '';
-    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    for (let i = 0; i < letters.length; i++) {
-      if (!assigned.includes(letters[i])) { code_letter = letters[i]; break; }
-    }
-    if (!code_letter) {
-      for (let i = 0; i < letters.length; i++) {
-        for (let j = 0; j < letters.length; j++) {
-          const combo = letters[i] + letters[j];
-          if (!assigned.includes(combo)) { code_letter = combo; break; }
-        }
-        if (code_letter) break;
+    if (available.length > 0) {
+      const randomIndex = Math.floor(Math.random() * available.length);
+      code_letter = available[randomIndex];
+    } else {
+      const fallbackAvailable = letters.filter(l => !assigned.has(l));
+      if (fallbackAvailable.length > 0) {
+        code_letter = fallbackAvailable[Math.floor(Math.random() * fallbackAvailable.length)];
       }
     }
+
+    if (!code_letter) return res.status(500).json({ error: 'Ran out of code letters' });
     
     await pool.query(`UPDATE fest_registrations SET code_letter = $1 WHERE id = $2`, [code_letter, registration_id]);
 
@@ -665,6 +686,66 @@ router.post('/stage-admin/generate-code', authorize('stage_admin', 'admin'), asy
     }
 
     res.json({ code_letter });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Reset single participant's code letter
+router.post('/stage-admin/reset-code', authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
+  const { registration_id } = req.body;
+  try {
+    await pool.query(`UPDATE fest_registrations SET code_letter = NULL WHERE id = $1`, [registration_id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Reset all participant code letters for a program
+router.post('/stage-admin/reset-program-codes', authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
+  const { program_id } = req.body;
+  try {
+    await pool.query(`UPDATE fest_registrations SET code_letter = NULL WHERE fest_program_id = $1`, [program_id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Randomly assign code letters to all registered participants in a program
+router.post('/stage-admin/randomize-program-codes', authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
+  const { program_id } = req.body;
+  try {
+    // Clear all existing codes for this program
+    await pool.query(`UPDATE fest_registrations SET code_letter = NULL WHERE fest_program_id = $1`, [program_id]);
+    
+    // Fetch all registrations for this program
+    const regRes = await pool.query(`SELECT id FROM fest_registrations WHERE fest_program_id = $1 ORDER BY id`, [program_id]);
+    const regs = regRes.rows;
+
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    let poolLetters = regs.length <= 26 ? letters.slice(0, Math.max(regs.length, 1)) : [...letters];
+    if (regs.length > letters.length) {
+      for (let i = 0; i < letters.length && poolLetters.length < regs.length; i++) {
+        for (let j = 0; j < letters.length && poolLetters.length < regs.length; j++) {
+          poolLetters.push(letters[i] + letters[j]);
+        }
+      }
+    }
+
+    // Shuffle poolLetters (Fisher-Yates)
+    for (let i = poolLetters.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [poolLetters[i], poolLetters[j]] = [poolLetters[j], poolLetters[i]];
+    }
+
+    // Assign shuffled code letters to each registration
+    for (let i = 0; i < regs.length; i++) {
+      await pool.query(`UPDATE fest_registrations SET code_letter = $1 WHERE id = $2`, [poolLetters[i], regs[i].id]);
+    }
+
+    res.json({ success: true, count: regs.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Server error' });
   }
