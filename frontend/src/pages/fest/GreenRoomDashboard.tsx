@@ -78,8 +78,8 @@ export default function GreenRoomDashboard() {
               </button>
             ))}
           </div>
-        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden overflow-x-auto">
+          <table className="w-full min-w-[500px] text-sm">
             <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 text-left">
               <tr>
                 <th className="px-4 py-3 font-medium">Program</th>

@@ -70,7 +70,7 @@ export default function AdminFestDashboard() {
       if (regRes.status === 'fulfilled') setRegistrations(regRes.value.data);
       if (studRes.status === 'fulfilled') setStudents(studRes.value.data.data || studRes.value.data);
       if (resultRes.status === 'fulfilled') setResults(resultRes.value.data);
-      if (posterRes.status === 'fulfilled' && posterRes.value.data) {
+      if (posterRes.status === 'fulfilled' && posterRes.value.data && posterRes.value.data.image_url) {
         setPosterTemplate(posterRes.value.data);
         if (posterRes.value.data.config) {
           setPosterConfig(posterRes.value.data.config);
@@ -166,8 +166,8 @@ export default function AdminFestDashboard() {
     try {
       await api.delete(`/fest/admin/users/${id}`);
       loadData();
-    } catch (err) {
-      alert('Failed to delete user');
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete user');
     }
   };
 
@@ -347,7 +347,7 @@ export default function AdminFestDashboard() {
                 </form>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm overflow-x-auto">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                 {/* Category Filter */}
                 <div className="flex flex-wrap gap-2 p-4 border-b border-slate-100">
                   {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
@@ -357,31 +357,33 @@ export default function AdminFestDashboard() {
                     </button>
                   ))}
                 </div>
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Title</th>
-                      <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Category</th>
-                      <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
-                      <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4 font-medium text-slate-900">{p.title}</td>
-                        <td className="px-6 py-4 text-slate-600"><span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium">{p.category}</span></td>
-                        <td className="px-6 py-4 text-slate-600 capitalize">{p.type}</td>
-                        <td className="px-6 py-4 text-right">
-                          <button onClick={() => handleDeleteProgram(p.id)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-2 rounded-lg transition-colors inline-flex items-center justify-center">
-                            <Trash2 size={18} />
-                          </button>
-                        </td>
+                <div className="overflow-x-auto w-full max-w-full">
+                  <table className="w-full min-w-[550px] text-sm text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Title</th>
+                        <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Category</th>
+                        <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Type</th>
+                        <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider text-right">Actions</th>
                       </tr>
-                    ))}
-                    {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">No programs{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''} found.</td></tr>}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
+                        <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-6 py-4 font-medium text-slate-900">{p.title}</td>
+                          <td className="px-6 py-4 text-slate-600"><span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium">{p.category}</span></td>
+                          <td className="px-6 py-4 text-slate-600 capitalize">{p.type}</td>
+                          <td className="px-6 py-4 text-right">
+                            <button onClick={() => handleDeleteProgram(p.id)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-2 rounded-lg transition-colors inline-flex items-center justify-center">
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">No programs{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''} found.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -406,7 +408,8 @@ export default function AdminFestDashboard() {
               </div>
 
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-sm text-left">
+                <div className="overflow-x-auto w-full max-w-full">
+                  <table className="w-full min-w-[500px] text-sm text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Team Name</th>
@@ -429,6 +432,7 @@ export default function AdminFestDashboard() {
                     {teams.length === 0 && <tr><td colSpan={3} className="px-6 py-12 text-center text-slate-500">No teams registered.</td></tr>}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
@@ -498,7 +502,8 @@ export default function AdminFestDashboard() {
               </div>
 
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-sm text-left">
+                <div className="overflow-x-auto w-full max-w-full">
+                  <table className="w-full min-w-[500px] text-sm text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Username</th>
@@ -536,6 +541,7 @@ export default function AdminFestDashboard() {
                     {festUsers.length === 0 && <tr><td colSpan={3} className="px-6 py-12 text-center text-slate-500">No fest specific users found.</td></tr>}
                   </tbody>
                 </table>
+                </div>
               </div>
 
               {/* Leader Team Assignment */}
@@ -608,20 +614,32 @@ export default function AdminFestDashboard() {
               </div>
 
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-sm text-left">
+                {/* Category Filter */}
+                <div className="flex flex-wrap gap-2 p-4 border-b border-slate-100">
+                  {['All', 'Premier', 'Junior', 'Senior'].map(cat => (
+                    <button key={cat} onClick={() => setCategoryFilter(cat)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+                <div className="overflow-x-auto w-full max-w-full">
+                  <table className="w-full min-w-[550px] text-sm text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Chest No.</th>
                       <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Student Name</th>
+                      <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Category</th>
                       <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Team</th>
                       <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {participants.map((p: any) => (
+                    {participants.filter((p: any) => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
                       <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4 font-bold font-mono text-slate-900 bg-slate-50/50">{p.chest_number}</td>
                         <td className="px-6 py-4 font-medium text-slate-900">{p.student_name} <span className="text-slate-400 font-normal text-xs ml-2">({p.admission_number})</span></td>
+                        <td className="px-6 py-4"><span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-semibold text-slate-700">{p.category || 'N/A'}</span></td>
                         <td className="px-6 py-4 text-slate-600">{p.team_name}</td>
                         <td className="px-6 py-4 text-right">
                           <button onClick={() => handleDeleteParticipant(p.id)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-2 rounded-lg transition-colors inline-flex items-center justify-center">
@@ -630,9 +648,12 @@ export default function AdminFestDashboard() {
                         </td>
                       </tr>
                     ))}
-                    {participants.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">No participants registered yet.</td></tr>}
+                    {participants.filter((p: any) => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && (
+                      <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">No participants found{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''}.</td></tr>
+                    )}
                   </tbody>
                 </table>
+                </div>
               </div>
 
               {/* Event Registrations Form */}
@@ -660,7 +681,8 @@ export default function AdminFestDashboard() {
               </div>
 
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-sm text-left">
+                <div className="overflow-x-auto w-full max-w-full">
+                  <table className="w-full min-w-[600px] text-sm text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Chest No.</th>
@@ -693,6 +715,7 @@ export default function AdminFestDashboard() {
                     {registrations.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">No event registrations found.</td></tr>}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
@@ -700,7 +723,8 @@ export default function AdminFestDashboard() {
           {activeTab === 'results' && (
             <div className="space-y-6">
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-sm text-left">
+                <div className="overflow-x-auto w-full max-w-full">
+                  <table className="w-full min-w-[550px] text-sm text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Position</th>
@@ -740,6 +764,7 @@ export default function AdminFestDashboard() {
                     {results.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">No results have been recorded yet.</td></tr>}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}

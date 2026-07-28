@@ -109,7 +109,7 @@ export default function StageAdminDashboard() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
-        <table className="w-full text-sm text-left">
+        <table className="w-full min-w-[550px] text-sm text-left">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-6 py-4 font-semibold text-slate-700 uppercase tracking-wider text-xs">Program</th>

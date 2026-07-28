@@ -264,9 +264,30 @@ router.get('/admin/users', authorize('admin'), async (req: AuthRequest, res) => 
 
 router.delete('/admin/users/:id', authorize('admin'), async (req: AuthRequest, res) => {
   try {
-    await pool.query(`DELETE FROM users WHERE id = $1`, [req.params.id]);
+    const userId = req.params.id;
+    if (req.user?.id === parseInt(userId)) {
+      return res.status(400).json({ error: "Cannot delete your own account." });
+    }
+    // Clean up dependent records safely across all tables referencing users(id)
+    await pool.query(`DELETE FROM audit_logs WHERE user_id = $1`, [userId]);
+    await pool.query(`DELETE FROM refresh_tokens WHERE user_id = $1`, [userId]);
+    await pool.query(`DELETE FROM fest_team_leaders WHERE user_id = $1`, [userId]);
+    await pool.query(`DELETE FROM fest_program_judges WHERE judge_id = $1`, [userId]);
+    await pool.query(`DELETE FROM fest_marks WHERE judge_id = $1`, [userId]);
+    await pool.query(`UPDATE fest_results SET published_by = NULL WHERE published_by = $1`, [userId]);
+    await pool.query(`UPDATE classes SET user_id = NULL WHERE user_id = $1`, [userId]);
+    await pool.query(`UPDATE teachers SET user_id = NULL WHERE user_id = $1`, [userId]);
+    await pool.query(`UPDATE students SET user_id = NULL WHERE user_id = $1`, [userId]);
+    await pool.query(`UPDATE attendance SET marked_by = NULL WHERE marked_by = $1`, [userId]);
+    await pool.query(`UPDATE exam_marks SET entered_by = NULL WHERE entered_by = $1`, [userId]);
+    await pool.query(`UPDATE leave_requests SET reviewed_by = NULL WHERE reviewed_by = $1`, [userId]);
+    await pool.query(`UPDATE announcements SET created_by = NULL WHERE created_by = $1`, [userId]);
+    await pool.query(`UPDATE events SET created_by = NULL WHERE created_by = $1`, [userId]);
+    
+    await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
     res.json({ success: true });
   } catch (err: any) {
+    console.error('Delete user error:', err);
     res.status(500).json({ error: err.message || 'Server error' });
   }
 });
@@ -300,7 +321,7 @@ router.delete('/admin/leader-assignment/:userId', authorize('admin'), async (req
 router.get('/admin/participants', authorize('admin'), async (req: AuthRequest, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT p.id, p.chest_number, s.name as student_name, s.admission_number, t.name as team_name, t.id as team_id
+      SELECT p.id, p.chest_number, p.category, s.name as student_name, s.admission_number, t.name as team_name, t.id as team_id
       FROM fest_participants p
       JOIN students s ON p.student_id = s.id
       JOIN fest_teams t ON p.fest_team_id = t.id
@@ -724,7 +745,7 @@ router.get('/leader/dashboard', authenticate, authorize('leader'), async (req: A
 
     // Get team participants
     const participantsRes = await pool.query(
-      `SELECT p.id, p.chest_number, s.name as student_name
+      `SELECT p.id, p.chest_number, p.category, s.name as student_name
        FROM fest_participants p
        JOIN students s ON p.student_id = s.id
        WHERE p.fest_team_id = $1
@@ -999,16 +1020,26 @@ router.post('/leader/programs/:id/register', authenticate, authorize('leader'), 
     }
 
     // Remove unchecked
-    for (const pid of toRemove) {
-      await pool.query(`DELETE FROM fest_registrations WHERE fest_program_id = $1 AND fest_participant_id = $2`, [programId, pid]);
+    if (toRemove.length > 0) {
+      await pool.query(`DELETE FROM fest_registrations WHERE fest_program_id = $1 AND fest_participant_id = ANY($2::int[])`, [programId, toRemove]);
     }
 
     // Add new checked
-    for (const pid of toAdd) {
-      const pRes = await pool.query(`SELECT id, category FROM fest_participants WHERE id = $1 AND fest_team_id = $2`, [pid, teamId]);
-      if (pRes.rows.length === 0) return res.status(400).json({ error: 'Participant not found in your team' });
-      
-      await pool.query(`INSERT INTO fest_registrations (fest_participant_id, fest_program_id) VALUES ($1, $2)`, [pid, programId]);
+    if (toAdd.length > 0) {
+      const validParticipants = await pool.query(
+        `SELECT id FROM fest_participants WHERE id = ANY($1::int[]) AND fest_team_id = $2`,
+        [toAdd, teamId]
+      );
+      if (validParticipants.rows.length !== toAdd.length) {
+        return res.status(400).json({ error: 'One or more selected participants do not belong to your team' });
+      }
+
+      await pool.query(
+        `INSERT INTO fest_registrations (fest_participant_id, fest_program_id)
+         SELECT unnest($1::int[]), $2
+         ON CONFLICT (fest_participant_id, fest_program_id) DO NOTHING`,
+        [toAdd, programId]
+      );
     }
 
     res.json({ success: true, added: toAdd.length, removed: toRemove.length });
@@ -1103,9 +1134,9 @@ router.get('/public/poster-template', async (_req, res) => {
   try {
     const { rows } = await pool.query(`SELECT image_url, config FROM fest_poster_templates ORDER BY id DESC LIMIT 1`);
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'No template configured' });
+      return res.json({ configured: false, image_url: null, config: null });
     }
-    res.json(rows[0]);
+    res.json({ configured: true, ...rows[0] });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Server error' });
   }

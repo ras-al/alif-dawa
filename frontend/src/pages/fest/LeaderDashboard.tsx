@@ -24,7 +24,7 @@ interface DashboardData {
     is_first_leader: boolean;
     total_points: number;
   };
-  participants: { id: number; chest_number: string; student_name: string }[];
+  participants: { id: number; chest_number: string; student_name: string; category?: string }[];
   results: { id: number; position: number; points: number; program_title: string; category: string; student_name: string; chest_number: string; team_name: string }[];
   live_programs: { id: number; title: string; category: string; status: string }[];
   leaderboard: { id: number; team_name: string; total_points: number }[];
@@ -165,8 +165,10 @@ export default function LeaderDashboard() {
     return () => clearInterval(interval);
   }, [loadDashboard]);
 
-  const loadPrograms = useCallback(async () => {
-    setLoadingPrograms(true);
+  const [savingRegistration, setSavingRegistration] = useState(false);
+
+  const loadPrograms = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setLoadingPrograms(true);
     try {
       const res = await api.get('/fest/leader/programs');
       setPrograms(res.data);
@@ -179,20 +181,33 @@ export default function LeaderDashboard() {
 
   useEffect(() => {
     if (activeTab === 'registration') {
-      loadPrograms();
+      loadPrograms(programs.length === 0);
     }
-  }, [activeTab, loadPrograms]);
+  }, [activeTab, loadPrograms, programs.length]);
 
   const handleSaveRegistration = async () => {
     if (!manageProgram) return;
+    setSavingRegistration(true);
     try {
       await api.post(`/fest/leader/programs/${manageProgram.id}/register`, {
         participantIds: selectedParticipants
       });
+      // Optimistically update local programs list
+      setPrograms(prev => prev.map(p => {
+        if (p.id === manageProgram.id) {
+          const updatedRegs = data?.participants
+            .filter(part => selectedParticipants.includes(part.id))
+            .map(part => ({ id: part.id, name: part.student_name, chest_number: part.chest_number })) || [];
+          return { ...p, registered_participants: updatedRegs };
+        }
+        return p;
+      }));
       setManageProgram(null);
-      loadPrograms(); // Refresh counts
+      loadPrograms(false);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to register');
+    } finally {
+      setSavingRegistration(false);
     }
   };
 
@@ -463,7 +478,8 @@ export default function LeaderDashboard() {
                 <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#14532D]"></div></div>
               ) : (
                 <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                  <table className="w-full text-sm text-left">
+                  <div className="overflow-x-auto w-full max-w-full">
+                    <table className="w-full min-w-[500px] text-sm text-left">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Program</th>
@@ -513,6 +529,7 @@ export default function LeaderDashboard() {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -522,26 +539,39 @@ export default function LeaderDashboard() {
           {activeTab === 'participants' && (
             <div>
               <h3 className="text-lg font-bold text-slate-900 mb-4">Team Members ({data.participants.length})</h3>
+              {/* Category Filter */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {['All', 'Premier', 'Junior', 'Senior'].map(cat => (
+                  <button key={cat} onClick={() => setCategoryFilter(cat)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                    {cat}
+                  </button>
+                ))}
+              </div>
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Chest No.</th>
-                      <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Name</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {data.participants.map(p => (
-                      <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4 font-mono font-bold text-slate-900">{p.chest_number}</td>
-                        <td className="px-6 py-4 font-medium text-slate-900">{p.student_name}</td>
+                <div className="overflow-x-auto w-full max-w-full">
+                  <table className="w-full min-w-[450px] text-sm text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Chest No.</th>
+                        <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Category</th>
                       </tr>
-                    ))}
-                    {data.participants.length === 0 && (
-                      <tr><td colSpan={2} className="px-6 py-12 text-center text-slate-500">No participants registered.</td></tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {data.participants.filter((p: any) => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
+                        <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-6 py-4 font-mono font-bold text-slate-900">{p.chest_number}</td>
+                          <td className="px-6 py-4 font-medium text-slate-900">{p.student_name}</td>
+                          <td className="px-6 py-4"><span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-semibold text-slate-700">{p.category || 'N/A'}</span></td>
+                        </tr>
+                      ))}
+                      {data.participants.filter((p: any) => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && (
+                        <tr><td colSpan={3} className="px-6 py-12 text-center text-slate-500">No participants found{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''}.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -560,7 +590,8 @@ export default function LeaderDashboard() {
                 ))}
               </div>
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full text-sm text-left">
+                <div className="overflow-x-auto w-full max-w-full">
+                  <table className="w-full min-w-[600px] text-sm text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Position</th>
@@ -603,6 +634,7 @@ export default function LeaderDashboard() {
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
@@ -661,8 +693,10 @@ export default function LeaderDashboard() {
 
               <div className="space-y-2">
                 {data.participants
-                  // Ideally we would filter by participant category matching the program category (unless program is General), 
-                  // but we display all here in case they are eligible.
+                  .filter((p: any) => {
+                    if (manageProgram.category === 'General') return true;
+                    return p.category === manageProgram.category;
+                  })
                   .map(p => {
                     const isSelected = selectedParticipants.includes(p.id);
                     const isLimitReached = manageProgram.team_limit !== null && selectedParticipants.length >= manageProgram.team_limit && !isSelected;
@@ -679,23 +713,27 @@ export default function LeaderDashboard() {
                             else setSelectedParticipants(selectedParticipants.filter(id => id !== p.id));
                           }}
                         />
-                        <div className="flex-1">
+                        <div className="flex-1 flex items-center justify-between">
                           <p className={`font-bold ${isSelected ? 'text-emerald-900' : 'text-slate-700'}`}>{p.student_name}</p>
+                          <span className="text-xs px-2 py-0.5 rounded bg-slate-100 font-medium text-slate-600 mr-2">{p.category || 'N/A'}</span>
                         </div>
                         <span className="font-mono text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">{p.chest_number}</span>
                       </label>
                     );
                   })}
+                {data.participants.filter((p: any) => manageProgram.category === 'General' || p.category === manageProgram.category).length === 0 && (
+                  <p className="text-center py-8 text-slate-500 text-sm">No {manageProgram.category} participants available in your team.</p>
+                )}
               </div>
             </div>
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 flex-shrink-0">
               <button onClick={() => setManageProgram(null)} className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-200 rounded-lg transition-colors">Cancel</button>
               <button
                 onClick={handleSaveRegistration}
-                disabled={manageProgram.team_limit !== null && selectedParticipants.length > manageProgram.team_limit}
+                disabled={savingRegistration || (manageProgram.team_limit !== null && selectedParticipants.length > manageProgram.team_limit)}
                 className="px-6 py-2 bg-[#14532D] text-white font-bold rounded-lg shadow-sm hover:bg-[#0f4022] transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                <Check size={18} /> Save Participants
+                {savingRegistration ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} Save Participants
               </button>
             </div>
           </div>

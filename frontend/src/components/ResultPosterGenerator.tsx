@@ -16,7 +16,9 @@ export function usePosterGenerator() {
   useEffect(() => {
     // Fetch template config on mount
     api.get('/fest/public/poster-template').then(res => {
-      setTemplate(res.data);
+      if (res.data && res.data.image_url) {
+        setTemplate(res.data);
+      }
     }).catch(() => {
       // Ignore if no template exists
     });
