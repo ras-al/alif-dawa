@@ -469,6 +469,33 @@ router.get('/admin/participants/download-cards', authorize('admin'), async (req:
   }
 });
 
+router.get('/admin/individual-points', authorize('admin'), async (req: AuthRequest, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT 
+          part.id, 
+          u.username as student_name, 
+          part.chest_number,
+          t.name as team_name,
+          COALESCE(SUM(CASE WHEN p.type = 'stage' AND p.is_group = false THEN r.points ELSE 0 END), 0)::int as stage_points,
+          COALESCE(SUM(CASE WHEN p.type = 'off-stage' AND p.is_group = false THEN r.points ELSE 0 END), 0)::int as off_stage_points,
+          COALESCE(SUM(CASE WHEN p.is_group = true THEN r.points ELSE 0 END), 0)::int as group_points,
+          COALESCE(SUM(r.points), 0)::int as total_points
+       FROM fest_participants part
+       JOIN users u ON part.student_id = u.id
+       LEFT JOIN fest_teams t ON part.fest_team_id = t.id
+       LEFT JOIN fest_registrations reg ON part.id = reg.fest_participant_id
+       LEFT JOIN fest_results r ON reg.id = r.fest_registration_id AND r.published_at IS NOT NULL
+       LEFT JOIN fest_programs p ON reg.fest_program_id = p.id
+       GROUP BY part.id, u.username, part.chest_number, t.name
+       ORDER BY total_points DESC`
+    );
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
 router.get('/admin/users', authorize('admin'), async (req: AuthRequest, res) => {
   try {
     const { rows } = await pool.query(`
@@ -643,12 +670,12 @@ router.delete('/admin/registrations/:id', authorize('admin'), async (req: AuthRe
 // Judge Routes
 router.get('/judge/programs', authorize('judge', 'admin'), async (req: AuthRequest, res) => {
   try {
-    let query = `SELECT id, title, category, type, status, is_called, is_group FROM fest_programs ORDER BY title`;
+    let query = `SELECT id, title, category, type, status, is_called, is_group, judging_locked FROM fest_programs ORDER BY title`;
     let params: any[] = [];
     
     if (req.user?.role === 'judge') {
         // Return only programs that have at least one judge assigned to them
-        query = `SELECT DISTINCT p.id, p.title, p.category, p.type, p.status, p.is_called, p.is_group 
+        query = `SELECT DISTINCT p.id, p.title, p.category, p.type, p.status, p.is_called, p.is_group, p.judging_locked 
                  FROM fest_programs p
                  JOIN fest_program_judges pj ON p.id = pj.fest_program_id
                  ORDER BY p.title`;
@@ -719,14 +746,17 @@ router.post('/judge/mark', authorize('judge'), async (req: AuthRequest, res) => 
   if (!judge_name) return res.status(400).json({ error: 'Judge name is required' });
   try {
     const progRes = await pool.query(
-      `SELECT p.status 
+      `SELECT p.status, p.judging_locked 
        FROM fest_programs p 
        JOIN fest_registrations r ON p.id = r.fest_program_id 
        WHERE r.id = $1`, [registration_id]
     );
     if (progRes.rows.length === 0) return res.status(404).json({ error: 'Program not found' });
-    if (progRes.rows[0].status !== 'live') {
-      return res.status(400).json({ error: 'Marks can only be submitted while the program is live' });
+    if (progRes.rows[0].status === 'scheduled') {
+      return res.status(400).json({ error: 'Program has not started yet' });
+    }
+    if (progRes.rows[0].judging_locked) {
+      return res.status(400).json({ error: 'Marks submission is locked for this program' });
     }
 
     await pool.query(
@@ -735,6 +765,16 @@ router.post('/judge/mark', authorize('judge'), async (req: AuthRequest, res) => 
        ON CONFLICT (fest_registration_id, judge_name) DO UPDATE SET mark = EXCLUDED.mark`,
       [registration_id, judge_name, mark]
     );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/judge/programs/:programId/lock', authorize('judge'), async (req: AuthRequest, res) => {
+  try {
+    await pool.query(`UPDATE fest_programs SET judging_locked = true WHERE id = $1`, [req.params.programId]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -756,6 +796,22 @@ router.get('/green-room/pending', authorize('green_room', 'admin'), async (req, 
        ) AND NOT EXISTS (
          SELECT 1 FROM fest_results r WHERE r.fest_program_id = p.id
        )`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/green-room/verified', authorize('green_room', 'admin'), async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT p.id, p.title, p.category, 
+        (SELECT MAX(published_at) FROM fest_results r WHERE r.fest_program_id = p.id) as published_at
+       FROM fest_programs p
+       JOIN fest_results r ON p.id = r.fest_program_id
+       ORDER BY p.title`
     );
     res.json(rows);
   } catch (err) {
@@ -805,6 +861,20 @@ router.post('/green-room/verify', authorize('green_room', 'admin'), async (req, 
         );
     }
     await pool.query(`UPDATE fest_programs SET status = 'completed' WHERE id = $1`, [program_id]);
+    await pool.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/green-room/programs/:programId/undo-verify', authorize('green_room', 'admin'), async (req, res) => {
+  try {
+    await pool.query('BEGIN');
+    await pool.query(`DELETE FROM fest_results WHERE fest_program_id = $1`, [req.params.programId]);
+    await pool.query(`UPDATE fest_programs SET status = 'live' WHERE id = $1`, [req.params.programId]);
     await pool.query('COMMIT');
     res.json({ success: true });
   } catch (err) {

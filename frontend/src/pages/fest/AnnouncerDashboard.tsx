@@ -15,6 +15,8 @@ export default function AnnouncerDashboard() {
       }
     }
     load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handlePublish = async (programId: number) => {

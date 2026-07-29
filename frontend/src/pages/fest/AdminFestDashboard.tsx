@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Target, Activity, Trash2, Plus, UserPlus, Trophy, ChevronRight, UserCircle, Info, Award, Image as ImageIcon, Save, Download, Lock, Unlock } from 'lucide-react';
+import { Users, Target, Activity, Trash2, Plus, UserPlus, Trophy, ChevronRight, UserCircle, Info, Award, Image as ImageIcon, Save, Download, Lock, Unlock, Star } from 'lucide-react';
 import api from '../../api/client';
 
 export default function AdminFestDashboard() {
@@ -12,6 +12,7 @@ export default function AdminFestDashboard() {
   const [registrations, setRegistrations] = useState([]);
   const [students, setStudents] = useState([]);
   const [results, setResults] = useState([]);
+  const [individualPoints, setIndividualPoints] = useState([]);
   const [posterTemplate, setPosterTemplate] = useState<any>(null);
   const [judgeAssignments, setJudgeAssignments] = useState([]);
   const [festSettings, setFestSettings] = useState<Record<string, string>>({});
@@ -27,6 +28,7 @@ export default function AdminFestDashboard() {
     { id: 'users', label: 'Fest Users', icon: UserPlus },
     { id: 'participants', label: 'Participants', icon: UserCircle },
     { id: 'results', label: 'All Results', icon: Award },
+    { id: 'individual', label: 'Individual Points', icon: Star },
     { id: 'poster', label: 'Poster Template', icon: ImageIcon },
   ] as const;
 
@@ -55,7 +57,7 @@ export default function AdminFestDashboard() {
 
   const loadData = async () => {
     try {
-      const [progRes, teamRes, userRes, partRes, regRes, studRes, resultRes, posterRes, assignRes, settingsRes] = await Promise.allSettled([
+      const [progRes, teamRes, userRes, partRes, regRes, studRes, resultRes, individualPointsRes, posterRes, assignRes, settingsRes] = await Promise.allSettled([
         api.get('/fest/public/programs'),
         api.get('/fest/admin/teams'),
         api.get('/fest/admin/users'),
@@ -63,6 +65,7 @@ export default function AdminFestDashboard() {
         api.get('/fest/admin/registrations'),
         api.get('/students'),
         api.get('/fest/admin/results'),
+        api.get('/fest/admin/individual-points'),
         api.get('/fest/public/poster-template'),
         api.get('/fest/admin/judge-assignments'),
         api.get('/fest/admin/fest-settings')
@@ -76,6 +79,7 @@ export default function AdminFestDashboard() {
       if (regRes.status === 'fulfilled') setRegistrations(regRes.value.data);
       if (studRes.status === 'fulfilled') setStudents(studRes.value.data.data || studRes.value.data);
       if (resultRes.status === 'fulfilled') setResults(resultRes.value.data);
+      if (individualPointsRes.status === 'fulfilled') setIndividualPoints(individualPointsRes.value.data);
       if (posterRes.status === 'fulfilled' && posterRes.value.data && posterRes.value.data.image_url) {
         setPosterTemplate(posterRes.value.data);
         if (posterRes.value.data.config) {
@@ -947,6 +951,56 @@ export default function AdminFestDashboard() {
                     {results.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">No results have been recorded yet.</td></tr>}
                   </tbody>
                 </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'individual' && (
+            <div className="space-y-6">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">Individual Points Leaderboard</h3>
+                </div>
+                <div className="overflow-x-auto w-full max-w-full">
+                  <table className="w-full min-w-[700px] text-sm text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-4 text-slate-700 font-bold text-xs uppercase tracking-wider">Rank</th>
+                        <th className="px-6 py-4 text-slate-700 font-bold text-xs uppercase tracking-wider">Chest No.</th>
+                        <th className="px-6 py-4 text-slate-700 font-bold text-xs uppercase tracking-wider">Student Name</th>
+                        <th className="px-6 py-4 text-slate-700 font-bold text-xs uppercase tracking-wider text-center">Stage Points</th>
+                        <th className="px-6 py-4 text-slate-700 font-bold text-xs uppercase tracking-wider text-center">Off-Stage Points</th>
+                        <th className="px-6 py-4 text-slate-700 font-bold text-xs uppercase tracking-wider text-center">Group Points</th>
+                        <th className="px-6 py-4 text-[#14532D] font-black text-xs uppercase tracking-wider text-right">Total Points</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {individualPoints.map((p: any, i: number) => (
+                        <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 font-bold text-slate-800">
+                            {i < 3 ? (
+                              <span className={`w-8 h-8 rounded-full flex items-center justify-center text-white ${i===0 ? 'bg-amber-400' : i===1 ? 'bg-slate-400' : 'bg-amber-600'}`}>{i + 1}</span>
+                            ) : (
+                              <span className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 text-slate-600">{i + 1}</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 font-bold text-slate-800">{p.chest_number}</td>
+                          <td className="px-6 py-4">
+                            <div className="font-semibold text-slate-900">{p.student_name}</div>
+                            <div className="text-xs text-slate-500">{p.team_name}</div>
+                          </td>
+                          <td className="px-6 py-4 text-center font-medium text-slate-600">{p.stage_points}</td>
+                          <td className="px-6 py-4 text-center font-medium text-slate-600">{p.off_stage_points}</td>
+                          <td className="px-6 py-4 text-center font-medium text-slate-600">{p.group_points}</td>
+                          <td className="px-6 py-4 text-right font-black text-lg text-[#14532D]">{p.total_points}</td>
+                        </tr>
+                      ))}
+                      {individualPoints.length === 0 && (
+                        <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">No points awarded yet.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>

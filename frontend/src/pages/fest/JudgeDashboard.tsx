@@ -8,11 +8,11 @@ export default function JudgeDashboard() {
   const [participants, setParticipants] = useState([]);
   const [marks, setMarks] = useState<Record<number, Record<string, string>>>({});
   const [savedMarks, setSavedMarks] = useState<Record<number, Record<string, number>>>({});
-  const [programJudges, setProgramJudges] = useState<{id: number, judge_name: string}[]>([]);
+  const [programJudges, setProgramJudges] = useState<{ id: number, judge_name: string }[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  
+
   const loadPrograms = useCallback(async () => {
     try {
       const res = await api.get('/fest/judge/programs');
@@ -43,7 +43,7 @@ export default function JudgeDashboard() {
       setParticipants(partRes.data);
       setProgramJudges(judgesRes.data);
       setSavedMarks(marksRes.data || {});
-      
+
       const prefilled: Record<number, Record<string, string>> = {};
       partRes.data.forEach((p: any) => {
         if (marksRes.data?.[p.registration_id]) {
@@ -110,6 +110,17 @@ export default function JudgeDashboard() {
     }
   };
 
+  const lockMarks = async () => {
+    if (!confirm('Are you sure you want to LOCK all marks for this program? You will not be able to edit them afterwards.')) return;
+    try {
+      await api.post(`/fest/judge/programs/${selectedProgram.id}/lock`);
+      setSelectedProgram({ ...selectedProgram, judging_locked: true });
+      alert('Marks successfully locked!');
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to lock marks');
+    }
+  };
+
   const handleBack = () => {
     setSelectedProgram(null);
     setParticipants([]);
@@ -146,19 +157,19 @@ export default function JudgeDashboard() {
             ))}
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
-          {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
-            <div key={p.id} onClick={() => handleSelect(p)} className="bg-white p-6 rounded-xl border border-slate-200 cursor-pointer hover:border-[#14532D] hover:shadow-md transition-all">
-              <h3 className="font-bold text-lg text-slate-900 mb-1">{p.title}</h3>
-              <p className="text-sm text-slate-500">
-                {p.category} • {p.type}
-                {p.is_group && <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[10px] font-bold uppercase"><Users size={10} /> Group</span>}
-              </p>
-              {p.status === 'live' && (
-                <span className="inline-block mt-2 px-2.5 py-0.5 bg-rose-100 text-rose-700 rounded-full text-xs font-bold animate-pulse">● Live Now</span>
-              )}
-            </div>
-          ))}
-          {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && <p className="text-slate-500 col-span-2">No programs{categoryFilter !== 'All' ? ` in ${categoryFilter} category` : ''} assigned to you.</p>}
+            {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
+              <div key={p.id} onClick={() => handleSelect(p)} className="bg-white p-6 rounded-xl border border-slate-200 cursor-pointer hover:border-[#14532D] hover:shadow-md transition-all">
+                <h3 className="font-bold text-lg text-slate-900 mb-1">{p.title}</h3>
+                <p className="text-sm text-slate-500">
+                  {p.category} • {p.type}
+                  {p.is_group && <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[10px] font-bold uppercase"><Users size={10} /> Group</span>}
+                </p>
+                {p.status === 'live' && (
+                  <span className="inline-block mt-2 px-2.5 py-0.5 bg-rose-100 text-rose-700 rounded-full text-xs font-bold animate-pulse">● Live Now</span>
+                )}
+              </div>
+            ))}
+            {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && <p className="text-slate-500 col-span-2">No programs{categoryFilter !== 'All' ? ` in ${categoryFilter} category` : ''} assigned to you.</p>}
           </div>
         </div>
       ) : (
@@ -176,7 +187,14 @@ export default function JudgeDashboard() {
                 <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold border border-indigo-100">
                   {participants.length} Participant{participants.length !== 1 ? 's' : ''} Ready
                 </span>
-                <button 
+                <button
+                  onClick={lockMarks}
+                  disabled={selectedProgram.judging_locked}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-all ${selectedProgram.judging_locked ? 'bg-slate-100 text-slate-400' : 'bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-200'}`}
+                >
+                  {selectedProgram.judging_locked ? 'Locked' : 'Lock Marks'}
+                </button>
+                <button
                   onClick={() => fetchParticipants(selectedProgram.id)}
                   className="p-2 text-slate-400 hover:text-[#14532D] hover:bg-emerald-50 rounded-lg transition-colors"
                   title="Refresh participants"
@@ -191,66 +209,81 @@ export default function JudgeDashboard() {
               </div>
             </div>
             <div className="p-4 space-y-4">
-              {selectedProgram.status !== 'live' && (
+              {selectedProgram.status === 'scheduled' && (
                 <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-sm font-medium text-center">
-                  This program is not currently live. You can only submit marks while the program is active.
+                  This program has not started yet. You can only submit marks once the stage admin clicks Live.
                 </div>
               )}
-              {participants.map((p: any) => {
-                const allSaved = programJudges.length > 0 && programJudges.every(j => savedMarks[p.registration_id]?.[j.judge_name] !== undefined);
-                
-                return (
-                  <div key={p.registration_id} className={`p-4 rounded-lg border transition-all ${allSaved ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-100'}`}>
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-12 h-12 bg-[#14532D]/10 text-[#14532D] font-bold text-xl rounded-lg flex items-center justify-center">
-                        {p.code_letter}
-                      </div>
-                      <div className="font-semibold text-slate-800">Code {p.code_letter}</div>
-                      {allSaved && (
-                        <span className="text-xs text-emerald-600 font-bold ml-auto px-2 py-1 bg-emerald-100 rounded">✓ All Marks Saved</span>
-                      )}
-                    </div>
-                    
-                    {programJudges.length === 0 ? (
-                      <p className="text-sm text-amber-600 italic">No judges assigned to this program.</p>
-                    ) : (
-                      <div className="space-y-3 pl-2 sm:pl-16">
-                        {programJudges.map(j => {
-                          const isSaved = savedMarks[p.registration_id]?.[j.judge_name] !== undefined;
-                          return (
-                            <div key={j.id} className="flex items-center justify-between gap-2 p-2 bg-white rounded border border-slate-100">
-                              <div className="text-sm font-medium text-slate-700 flex-1 truncate pr-2">
-                                {j.judge_name}
-                                {isSaved && <span className="ml-2 text-[10px] text-emerald-600 font-bold">✓ {savedMarks[p.registration_id][j.judge_name]}</span>}
+              {selectedProgram.judging_locked && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-sm font-medium text-center flex items-center justify-center gap-2">
+                  Marks for this program have been locked and successfully submitted.
+                </div>
+              )}
+              {programJudges.length === 0 && participants.length > 0 && (
+                <p className="text-sm text-amber-600 italic text-center py-4">No judges assigned to this program yet.</p>
+              )}
+              {participants.length > 0 && programJudges.length > 0 && (
+                <div className="overflow-x-auto w-full pb-4">
+                  <table className="w-full text-left border-separate border-spacing-y-4 border-spacing-x-2 min-w-[max-content]">
+                    <thead>
+                      <tr>
+                        <th className="px-4 pb-2 text-sm font-bold text-slate-500 uppercase tracking-wider sticky left-0 bg-white z-10">Participant</th>
+                        {programJudges.map(j => (
+                          <th key={j.id} className="px-4 pb-2 text-sm font-bold text-center text-[#14532D] uppercase tracking-wider min-w-[140px]">
+                            {j.judge_name}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {participants.map((p: any) => {
+                        const allSaved = programJudges.length > 0 && programJudges.every(j => savedMarks[p.registration_id]?.[j.judge_name] !== undefined);
+                        return (
+                          <tr key={p.registration_id} className={`transition-colors ${allSaved ? 'bg-emerald-50/50' : 'bg-slate-50'} rounded-2xl shadow-sm border border-slate-100`}>
+                            <td className={`px-4 py-3 sticky left-0 z-10 rounded-l-2xl ${allSaved ? 'bg-emerald-50' : 'bg-slate-50'}`}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-[#14532D]/10 text-[#14532D] font-bold text-lg rounded-full flex items-center justify-center shrink-0">
+                                  {p.code_letter}
+                                </div>
+                                <span className="font-semibold text-slate-800 whitespace-nowrap">Code {p.code_letter}</span>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <input 
-                                  type="number" 
-                                  placeholder="Mark" 
-                                  value={marks[p.registration_id]?.[j.judge_name] || ''}
-                                  onChange={(e) => handleMarkChange(p.registration_id, j.judge_name, e.target.value)}
-                                  disabled={selectedProgram.status !== 'live'}
-                                  className="w-20 px-3 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] disabled:opacity-50 disabled:bg-slate-100"
-                                />
-                                <button 
-                                  onClick={() => submitMark(p.registration_id, j.judge_name)}
-                                  disabled={!marks[p.registration_id]?.[j.judge_name] || selectedProgram.status !== 'live'}
-                                  className="p-1.5 bg-[#14532D] text-white rounded hover:bg-[#14532D]/90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
-                                  title="Submit Mark"
-                                >
-                                  <CheckCircle size={16} />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                            </td>
+                            {programJudges.map(j => {
+                              const isSaved = savedMarks[p.registration_id]?.[j.judge_name] !== undefined;
+                              return (
+                                <td key={j.id} className={`px-4 py-3 ${j.id === programJudges[programJudges.length - 1].id ? 'rounded-r-2xl' : ''}`}>
+                                  <div className="flex items-center justify-center gap-2">
+                                    <div className="relative">
+                                      <input
+                                        type="number"
+                                        placeholder="Mark"
+                                        value={marks[p.registration_id]?.[j.judge_name] || ''}
+                                        onChange={(e) => handleMarkChange(p.registration_id, j.judge_name, e.target.value)}
+                                        disabled={selectedProgram.status === 'scheduled' || selectedProgram.judging_locked}
+                                        className={`w-24 px-4 py-2 text-center border-2 rounded-full text-sm font-bold focus:outline-none focus:ring-4 focus:ring-[#14532D]/20 transition-all ${isSaved ? 'border-emerald-400 bg-emerald-50 text-emerald-800' : 'border-slate-300 bg-white text-slate-800 focus:border-[#14532D]'} disabled:opacity-50`}
+                                      />
+                                    </div>
+                                    <button
+                                      onClick={() => submitMark(p.registration_id, j.judge_name)}
+                                      disabled={!marks[p.registration_id]?.[j.judge_name] || selectedProgram.status === 'scheduled' || selectedProgram.judging_locked}
+                                      className={`p-2.5 rounded-xl transition-all shadow-sm flex-shrink-0 ${isSaved ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200' : 'bg-[#14532D] text-white hover:bg-[#14532D]/90'} disabled:opacity-40 disabled:shadow-none`}
+                                      title={isSaved ? "Update Mark" : "Submit Mark"}
+                                    >
+                                      <CheckCircle size={20} />
+                                    </button>
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               {participants.length === 0 && (
-                <div className="text-center py-8">
+                <div className="text-center py-12">
                   <p className="text-slate-500 font-medium">No participants have picked their codes yet.</p>
                   <p className="text-xs text-slate-400 mt-1">This list auto-refreshes every 10 seconds.</p>
                 </div>
