@@ -305,14 +305,23 @@ router.delete('/admin/programs/:id', authorize('admin'), async (req: AuthRequest
 
 // Judge assignments
 router.post('/admin/assign-judge', authorize('admin'), async (req: AuthRequest, res) => {
-  const { fest_program_id, judge_id } = req.body;
+  const { fest_program_id, judge_names } = req.body;
   try {
-    await pool.query(
-      `INSERT INTO fest_program_judges (fest_program_id, judge_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-      [fest_program_id, judge_id]
-    );
+    if (!Array.isArray(judge_names)) {
+      return res.status(400).json({ error: 'judge_names must be an array' });
+    }
+    await pool.query('BEGIN');
+    await pool.query(`DELETE FROM fest_program_judges WHERE fest_program_id = $1`, [fest_program_id]);
+    for (const name of judge_names) {
+      await pool.query(
+        `INSERT INTO fest_program_judges (fest_program_id, judge_name) VALUES ($1, $2)`,
+        [fest_program_id, name]
+      );
+    }
+    await pool.query('COMMIT');
     res.json({ success: true });
   } catch (err: any) {
+    await pool.query('ROLLBACK');
     res.status(500).json({ error: err.message || 'Server error' });
   }
 });
@@ -330,13 +339,11 @@ router.get('/admin/judges', authorize('admin'), async (req: AuthRequest, res) =>
 router.get('/admin/judge-assignments', authorize('admin'), async (req: AuthRequest, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT pj.id, pj.fest_program_id, pj.judge_id, 
-             p.title as program_title, p.category as program_category,
-             u.username as judge_username
+      SELECT pj.id, pj.fest_program_id, pj.judge_name, 
+             p.title as program_title, p.category as program_category
       FROM fest_program_judges pj
       JOIN fest_programs p ON pj.fest_program_id = p.id
-      JOIN users u ON pj.judge_id = u.id
-      ORDER BY p.title, u.username
+      ORDER BY p.title, pj.judge_name
     `);
     res.json(rows);
   } catch (err: any) {
@@ -636,18 +643,15 @@ router.delete('/admin/registrations/:id', authorize('admin'), async (req: AuthRe
 // Judge Routes
 router.get('/judge/programs', authorize('judge', 'admin'), async (req: AuthRequest, res) => {
   try {
-    // If admin, they see all programs
-    // If judge, they see only their assigned programs
-    const userId = req.user?.id;
-    let query = `SELECT id, title, category, type, status, is_called, is_group FROM fest_programs`;
+    let query = `SELECT id, title, category, type, status, is_called, is_group FROM fest_programs ORDER BY title`;
     let params: any[] = [];
     
     if (req.user?.role === 'judge') {
-        query = `SELECT p.id, p.title, p.category, p.type, p.status, p.is_called, p.is_group 
+        // Return only programs that have at least one judge assigned to them
+        query = `SELECT DISTINCT p.id, p.title, p.category, p.type, p.status, p.is_called, p.is_group 
                  FROM fest_programs p
                  JOIN fest_program_judges pj ON p.id = pj.fest_program_id
-                 WHERE pj.judge_id = $1`;
-        params = [userId];
+                 ORDER BY p.title`;
     }
     
     const { rows } = await pool.query(query, params);
@@ -658,21 +662,34 @@ router.get('/judge/programs', authorize('judge', 'admin'), async (req: AuthReque
   }
 });
 
+router.get('/judge/programs/:programId/judges', authorize('judge', 'admin', 'stage_admin', 'green_room'), async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT id, judge_name FROM fest_program_judges WHERE fest_program_id = $1 ORDER BY id`, [req.params.programId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get judge's own marks for a program
 router.get('/judge/programs/:programId/my-marks', authorize('judge'), async (req: AuthRequest, res) => {
   const { programId } = req.params;
-  const judgeId = req.user?.id;
   try {
     const { rows } = await pool.query(
-      `SELECT m.fest_registration_id as registration_id, m.mark
+      `SELECT m.fest_registration_id as registration_id, m.mark, m.judge_name
        FROM fest_marks m
        JOIN fest_registrations r ON m.fest_registration_id = r.id
-       WHERE r.fest_program_id = $1 AND m.judge_id = $2`,
-      [programId, judgeId]
+       WHERE r.fest_program_id = $1`,
+      [programId]
     );
-    const marksMap: Record<number, number> = {};
-    rows.forEach((r: any) => { marksMap[r.registration_id] = parseFloat(r.mark); });
-    res.json(marksMap);
+    const marksByReg: any = {};
+    rows.forEach((r: any) => { 
+      if (!marksByReg[r.registration_id]) {
+        marksByReg[r.registration_id] = {};
+      }
+      marksByReg[r.registration_id][r.judge_name] = parseFloat(r.mark); 
+    });
+    res.json(marksByReg);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -684,9 +701,10 @@ router.get('/judge/programs/:programId/participants', authorize('judge', 'admin'
   try {
     // Return only code_letters for judging, not names or chest numbers
     const { rows } = await pool.query(
-      `SELECT id as registration_id, code_letter 
+      `SELECT MIN(id) as registration_id, code_letter 
        FROM fest_registrations 
-       WHERE fest_program_id = $1 AND code_letter IS NOT NULL`, 
+       WHERE fest_program_id = $1 AND code_letter IS NOT NULL
+       GROUP BY code_letter`, 
       [programId]
     );
     res.json(rows);
@@ -697,14 +715,25 @@ router.get('/judge/programs/:programId/participants', authorize('judge', 'admin'
 });
 
 router.post('/judge/mark', authorize('judge'), async (req: AuthRequest, res) => {
-  const { registration_id, mark } = req.body;
-  const judgeId = req.user?.id;
+  const { registration_id, judge_name, mark } = req.body;
+  if (!judge_name) return res.status(400).json({ error: 'Judge name is required' });
   try {
+    const progRes = await pool.query(
+      `SELECT p.status 
+       FROM fest_programs p 
+       JOIN fest_registrations r ON p.id = r.fest_program_id 
+       WHERE r.id = $1`, [registration_id]
+    );
+    if (progRes.rows.length === 0) return res.status(404).json({ error: 'Program not found' });
+    if (progRes.rows[0].status !== 'live') {
+      return res.status(400).json({ error: 'Marks can only be submitted while the program is live' });
+    }
+
     await pool.query(
-      `INSERT INTO fest_marks (fest_registration_id, judge_id, mark) 
+      `INSERT INTO fest_marks (fest_registration_id, judge_name, mark) 
        VALUES ($1, $2, $3)
-       ON CONFLICT (fest_registration_id, judge_id) DO UPDATE SET mark = EXCLUDED.mark`,
-      [registration_id, judgeId, mark]
+       ON CONFLICT (fest_registration_id, judge_name) DO UPDATE SET mark = EXCLUDED.mark`,
+      [registration_id, judge_name, mark]
     );
     res.json({ success: true });
   } catch (err) {
@@ -740,14 +769,19 @@ router.get('/green-room/program/:programId', authorize('green_room', 'admin'), a
     const { programId } = req.params;
     try {
         const { rows } = await pool.query(
-            `SELECT reg.id as registration_id, reg.code_letter, part.chest_number, t.name as team_name,
-                    m.mark, m.judge_id, u.username as judge_name
-             FROM fest_registrations reg
-             JOIN fest_participants part ON reg.fest_participant_id = part.id
-             JOIN fest_teams t ON part.fest_team_id = t.id
-             LEFT JOIN fest_marks m ON reg.id = m.fest_registration_id
-             LEFT JOIN users u ON m.judge_id = u.id
-             WHERE reg.fest_program_id = $1`,
+            `WITH RankedRegs AS (
+               SELECT reg.id as registration_id, reg.code_letter, part.chest_number, t.name as team_name,
+                      ROW_NUMBER() OVER(PARTITION BY reg.code_letter ORDER BY reg.id ASC) as rn
+               FROM fest_registrations reg
+               JOIN fest_participants part ON reg.fest_participant_id = part.id
+               JOIN fest_teams t ON part.fest_team_id = t.id
+               WHERE reg.fest_program_id = $1 AND reg.code_letter IS NOT NULL
+             )
+             SELECT rr.registration_id, rr.code_letter, rr.chest_number, rr.team_name,
+                    m.mark, m.judge_name
+             FROM RankedRegs rr
+             LEFT JOIN fest_marks m ON rr.registration_id = m.fest_registration_id
+             WHERE rr.rn = 1`,
             [programId]
         );
         res.json(rows);
@@ -844,9 +878,23 @@ router.post('/stage-admin/generate-code', authorize('stage_admin', 'admin'), asy
     const programId = regRes.rows[0].fest_program_id;
     const participantId = regRes.rows[0].fest_participant_id;
     
-    // Query total registered count for this program to constrain code pool to first N letters
-    const countRes = await pool.query(`SELECT COUNT(*)::int as total FROM fest_registrations WHERE fest_program_id = $1`, [programId]);
-    const totalCount = countRes.rows[0].total || 1;
+    const progRes = await pool.query(`SELECT is_group FROM fest_programs WHERE id = $1`, [programId]);
+    const isGroup = progRes.rows[0]?.is_group || false;
+
+    // Query total registered count (teams for group events, individuals for solo) to constrain code pool
+    let totalCount = 1;
+    if (isGroup) {
+      const countRes = await pool.query(`
+        SELECT COUNT(DISTINCT p.fest_team_id)::int as total 
+        FROM fest_registrations r
+        JOIN fest_participants p ON r.fest_participant_id = p.id
+        WHERE r.fest_program_id = $1
+      `, [programId]);
+      totalCount = countRes.rows[0].total || 1;
+    } else {
+      const countRes = await pool.query(`SELECT COUNT(*)::int as total FROM fest_registrations WHERE fest_program_id = $1`, [programId]);
+      totalCount = countRes.rows[0].total || 1;
+    }
 
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
     const validLetters = totalCount <= 26 ? letters.slice(0, Math.max(totalCount, 1)) : letters;

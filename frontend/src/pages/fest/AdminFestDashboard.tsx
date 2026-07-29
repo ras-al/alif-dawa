@@ -6,7 +6,7 @@ export default function AdminFestDashboard() {
   const [stats, setStats] = useState({ programs: 0, teams: 0, live: 0 });
   const [programs, setPrograms] = useState([]);
   const [teams, setTeams] = useState([]);
-  const [judges, setJudges] = useState([]);
+
   const [festUsers, setFestUsers] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [registrations, setRegistrations] = useState([]);
@@ -36,7 +36,8 @@ export default function AdminFestDashboard() {
   // Forms state
   const [newProgram, setNewProgram] = useState({ title: '', category: 'Premier', type: 'stage', max_judges: 3 });
   const [newTeam, setNewTeam] = useState({ name: '', chest_number_start: 100 });
-  const [assignJudge, setAssignJudge] = useState({ program_id: '', judge_id: '' });
+  const [assignJudge, setAssignJudge] = useState<{ program_id: string, judge_names: string[] }>({ program_id: '', judge_names: [] });
+  const [newJudgeInput, setNewJudgeInput] = useState('');
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'judge' });
   const [newParticipant, setNewParticipant] = useState({ student_id: '', fest_team_id: '' });
   const [newRegistration, setNewRegistration] = useState({ fest_participant_id: '', fest_program_id: '' });
@@ -54,10 +55,9 @@ export default function AdminFestDashboard() {
 
   const loadData = async () => {
     try {
-      const [progRes, teamRes, judgeRes, userRes, partRes, regRes, studRes, resultRes, posterRes, assignRes, settingsRes] = await Promise.allSettled([
+      const [progRes, teamRes, userRes, partRes, regRes, studRes, resultRes, posterRes, assignRes, settingsRes] = await Promise.allSettled([
         api.get('/fest/public/programs'),
         api.get('/fest/admin/teams'),
-        api.get('/fest/admin/judges'),
         api.get('/fest/admin/users'),
         api.get('/fest/admin/participants'),
         api.get('/fest/admin/registrations'),
@@ -70,7 +70,7 @@ export default function AdminFestDashboard() {
       
       if (progRes.status === 'fulfilled') setPrograms(progRes.value.data);
       if (teamRes.status === 'fulfilled') setTeams(teamRes.value.data);
-      if (judgeRes.status === 'fulfilled') setJudges(judgeRes.value.data);
+
       if (userRes.status === 'fulfilled') setFestUsers(userRes.value.data);
       if (partRes.status === 'fulfilled') setParticipants(partRes.value.data);
       if (regRes.status === 'fulfilled') setRegistrations(regRes.value.data);
@@ -146,19 +146,31 @@ export default function AdminFestDashboard() {
 
   const handleAssignJudge = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (assignJudge.judge_names.length === 0) {
+      alert('Please add at least one judge name.');
+      return;
+    }
     try {
       await api.post('/fest/admin/assign-judge', {
         fest_program_id: assignJudge.program_id,
-        judge_id: assignJudge.judge_id
+        judge_names: assignJudge.judge_names
       });
-      alert('Judge assigned successfully!');
-      setAssignJudge({ program_id: '', judge_id: '' });
+      alert('Judges assigned successfully!');
+      setAssignJudge({ program_id: '', judge_names: [] });
+      setNewJudgeInput('');
       // Reload judge assignments
       const res = await api.get('/fest/admin/judge-assignments');
       setJudgeAssignments(res.data);
     } catch (err) {
-      alert('Failed to assign judge');
+      alert('Failed to assign judges');
     }
+  };
+
+  const handleProgramSelectForAssign = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const programId = e.target.value;
+    // Find already assigned judges for this program
+    const assignedForProgram = judgeAssignments.filter((a: any) => a.fest_program_id.toString() === programId).map((a: any) => a.judge_name);
+    setAssignJudge({ program_id: programId, judge_names: assignedForProgram });
   };
 
   const handleDeleteJudgeAssignment = async (id: number) => {
@@ -530,32 +542,70 @@ export default function AdminFestDashboard() {
           {activeTab === 'judges' && (
             <div className="space-y-8">
               <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-                <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wide">Assign Judge to Program</h3>
-                <form onSubmit={handleAssignJudge} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Program</label>
-                    <select required value={assignJudge.program_id} onChange={e => setAssignJudge({...assignJudge, program_id: e.target.value})} className="border border-slate-300 rounded-lg px-4 py-2.5 text-sm w-full bg-white focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none transition-all">
-                      <option value="">Select a Program</option>
-                      {programs.map((p: any) => <option key={p.id} value={p.id}>{p.title} ({p.category})</option>)}
-                    </select>
+                <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wide">Assign Judges to Program</h3>
+                <form onSubmit={handleAssignJudge} className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">Program</label>
+                      <select required value={assignJudge.program_id} onChange={handleProgramSelectForAssign} className="border border-slate-300 rounded-lg px-4 py-2.5 text-sm w-full bg-white focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none transition-all">
+                        <option value="">Select a Program</option>
+                        {programs.map((p: any) => <option key={p.id} value={p.id}>{p.title} ({p.category})</option>)}
+                      </select>
+                    </div>
+                    
+                    <button type="submit" disabled={!assignJudge.program_id} className="w-full bg-[#14532D] text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#14532D]/90 transition-all shadow-sm disabled:opacity-50">
+                      <Target size={18} /> Save Assignments
+                    </button>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Judge Account</label>
-                    <select required value={assignJudge.judge_id} onChange={e => setAssignJudge({...assignJudge, judge_id: e.target.value})} className="border border-slate-300 rounded-lg px-4 py-2.5 text-sm w-full bg-white focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none transition-all">
-                      <option value="">Select a Judge</option>
-                      {judges.map((j: any) => <option key={j.id} value={j.id}>{j.username}</option>)}
-                    </select>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Add Judge Names</label>
+                    <div className="flex gap-2 mb-3">
+                      <input 
+                        type="text" 
+                        value={newJudgeInput} 
+                        onChange={e => setNewJudgeInput(e.target.value)} 
+                        placeholder="e.g. Mr. John" 
+                        className="flex-1 border border-slate-300 rounded-lg px-4 py-2.5 text-sm bg-white focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (newJudgeInput.trim()) {
+                              setAssignJudge(prev => ({ ...prev, judge_names: [...prev.judge_names, newJudgeInput.trim()] }));
+                              setNewJudgeInput('');
+                            }
+                          }
+                        }}
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          if (newJudgeInput.trim()) {
+                            setAssignJudge(prev => ({ ...prev, judge_names: [...prev.judge_names, newJudgeInput.trim()] }));
+                            setNewJudgeInput('');
+                          }
+                        }}
+                        className="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-slate-200"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-y-auto p-3 border border-slate-300 rounded-lg bg-white">
+                      {assignJudge.judge_names.map((name, i) => (
+                        <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded p-2 text-sm">
+                          <span className="font-medium text-slate-800">{name}</span>
+                          <button 
+                            type="button" 
+                            onClick={() => setAssignJudge(prev => ({ ...prev, judge_names: prev.judge_names.filter((_, idx) => idx !== i) }))}
+                            className="text-rose-500 hover:text-rose-700 p-1"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                      {assignJudge.judge_names.length === 0 && <p className="text-slate-500 text-xs italic text-center p-2">No judges added yet.</p>}
+                    </div>
                   </div>
-                  <button type="submit" className="bg-[#14532D] text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#14532D]/90 transition-all shadow-sm">
-                    <Target size={18} /> Confirm Assignment
-                  </button>
                 </form>
-                {judges.length === 0 && (
-                   <div className="mt-4 p-4 bg-amber-50 text-amber-700 rounded-lg border border-amber-200 text-sm flex items-start gap-3">
-                     <span className="text-amber-500 mt-0.5">⚠️</span>
-                     <p>No judge accounts exist. Please go to the <strong>Fest Users</strong> tab and create at least one user with the "Judge" role first.</p>
-                   </div>
-                )}
               </div>
               
               {/* Existing Judge Assignments Table */}
@@ -569,7 +619,7 @@ export default function AdminFestDashboard() {
                       <tr>
                         <th className="px-6 py-3 text-slate-700 font-semibold text-xs uppercase tracking-wider">Program</th>
                         <th className="px-6 py-3 text-slate-700 font-semibold text-xs uppercase tracking-wider">Category</th>
-                        <th className="px-6 py-3 text-slate-700 font-semibold text-xs uppercase tracking-wider">Judge</th>
+                        <th className="px-6 py-3 text-slate-700 font-semibold text-xs uppercase tracking-wider">Judge Name</th>
                         <th className="px-6 py-3 text-slate-700 font-semibold text-xs uppercase tracking-wider text-right">Actions</th>
                       </tr>
                     </thead>
@@ -579,7 +629,7 @@ export default function AdminFestDashboard() {
                           <td className="px-6 py-3 font-medium text-slate-900">{a.program_title}</td>
                           <td className="px-6 py-3"><span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium">{a.program_category}</span></td>
                           <td className="px-6 py-3">
-                            <span className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-md text-xs font-semibold">{a.judge_username}</span>
+                            <span className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-md text-xs font-semibold">{a.judge_name}</span>
                           </td>
                           <td className="px-6 py-3 text-right">
                             <button onClick={() => handleDeleteJudgeAssignment(a.id)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-2 rounded-lg transition-colors inline-flex items-center justify-center">

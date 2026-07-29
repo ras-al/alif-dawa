@@ -18,25 +18,55 @@ export default function GreenRoomDashboard() {
       }
     }
     loadPending();
+    const interval = setInterval(loadPending, 15000);
+    return () => clearInterval(interval);
   }, []);
 
-  const handleSelect = async (p: any) => {
-    setSelectedProgram(p);
+  const loadMarks = async (programId: number) => {
     try {
-      const res = await api.get(`/fest/green-room/program/${p.id}`);
+      const res = await api.get(`/fest/green-room/program/${programId}`);
       setMarksData(res.data);
     } catch (err) {
       console.error(err);
     }
   };
 
+  useEffect(() => {
+    if (selectedProgram) {
+      const interval = setInterval(() => {
+        loadMarks(selectedProgram.id);
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedProgram]);
+
+  const handleSelect = async (p: any) => {
+    setSelectedProgram(p);
+    await loadMarks(p.id);
+  };
+
   const handleVerify = async () => {
-    // In a real app, calculate actual positions based on aggregated marks.
-    // For now, mock sending dummy verified results.
-    const results = marksData.map((m: any, idx: number) => ({
-      registration_id: m.registration_id,
-      position: idx + 1, // Mock
-      points: 10 - idx // Mock
+    // Calculate actual positions based on aggregated (average) marks from all judges.
+    const aggregated: Record<number, { registration_id: number; totalMark: number; count: number; avg: number }> = {};
+    marksData.forEach((m: any) => {
+      if (!m.mark) return;
+      const regId = m.registration_id;
+      if (!aggregated[regId]) {
+        aggregated[regId] = { registration_id: regId, totalMark: 0, count: 0, avg: 0 };
+      }
+      aggregated[regId].totalMark += parseFloat(m.mark) || 0;
+      aggregated[regId].count += 1;
+    });
+
+    const sortedRegistrations = Object.values(aggregated).map(a => ({
+      ...a,
+      avg: a.totalMark / a.count
+    })).sort((a, b) => b.avg - a.avg);
+
+    const results = sortedRegistrations.map((s, idx) => ({
+      registration_id: s.registration_id,
+      position: idx + 1,
+      points: idx === 0 ? 10 : idx === 1 ? 7 : idx === 2 ? 5 : 0
     }));
 
     try {

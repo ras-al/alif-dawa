@@ -22,7 +22,30 @@ export default function StageAdminDashboard() {
 
   useEffect(() => {
     fetchPrograms();
+    const interval = setInterval(() => {
+      fetchPrograms();
+    }, 15000);
+    return () => clearInterval(interval);
   }, []);
+
+  const fetchParticipants = async (programId: number) => {
+    try {
+      const res = await api.get(`/fest/stage-admin/programs/${programId}/participants`);
+      setParticipants(res.data.participants || res.data);
+      setIsGroupEvent(res.data.is_group || false);
+    } catch (err) {
+      console.error('Failed to load participants', err);
+    }
+  };
+
+  useEffect(() => {
+    if (expandedProgramId) {
+      const interval = setInterval(() => {
+        fetchParticipants(expandedProgramId);
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [expandedProgramId]);
 
   const handleSetStatus = async (id: number, status: string) => {
     try {
@@ -59,15 +82,8 @@ export default function StageAdminDashboard() {
       setExpandedProgramId(null);
       return;
     }
-    
-    try {
-      const res = await api.get(`/fest/stage-admin/programs/${programId}/participants`);
-      setParticipants(res.data.participants || res.data);
-      setIsGroupEvent(res.data.is_group || false);
-      setExpandedProgramId(programId);
-    } catch (err) {
-      alert('Failed to load participants');
-    }
+    setExpandedProgramId(programId);
+    await fetchParticipants(programId);
   };
 
   const handleGenerateCode = async (registrationId: number) => {
@@ -108,9 +124,7 @@ export default function StageAdminDashboard() {
     if (!confirm('Randomize & assign code letters to ALL participants in this program?')) return;
     try {
       await api.post('/fest/stage-admin/randomize-program-codes', { program_id: programId });
-      const res = await api.get(`/fest/stage-admin/programs/${programId}/participants`);
-      setParticipants(res.data.participants || res.data);
-      setIsGroupEvent(res.data.is_group || false);
+      await fetchParticipants(programId);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to randomize codes');
     }

@@ -6,40 +6,60 @@ export default function JudgeDashboard() {
   const [programs, setPrograms] = useState([]);
   const [selectedProgram, setSelectedProgram] = useState<any>(null);
   const [participants, setParticipants] = useState([]);
-  const [marks, setMarks] = useState<Record<number, string>>({});
-  const [savedMarks, setSavedMarks] = useState<Record<number, number>>({});
+  const [marks, setMarks] = useState<Record<number, Record<string, string>>>({});
+  const [savedMarks, setSavedMarks] = useState<Record<number, Record<string, number>>>({});
+  const [programJudges, setProgramJudges] = useState<{id: number, judge_name: string}[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
-  useEffect(() => {
-    async function fetchPrograms() {
-      try {
-        const res = await api.get('/fest/judge/programs');
-        setPrograms(res.data);
-      } catch (err) {
-        console.error(err);
-      }
+  const loadPrograms = useCallback(async () => {
+    try {
+      const res = await api.get('/fest/judge/programs');
+      setPrograms(res.data);
+      setSelectedProgram((prev: any) => {
+        if (!prev) return prev;
+        const updated = res.data.find((p: any) => p.id === prev.id);
+        return updated || prev;
+      });
+    } catch (err) {
+      console.error(err);
     }
-    fetchPrograms();
   }, []);
+
+  useEffect(() => {
+    loadPrograms();
+    const interval = setInterval(loadPrograms, 10000);
+    return () => clearInterval(interval);
+  }, [loadPrograms]);
 
   const fetchParticipants = useCallback(async (programId: number) => {
     try {
-      const [partRes, marksRes] = await Promise.all([
+      const [partRes, marksRes, judgesRes] = await Promise.all([
         api.get(`/fest/judge/programs/${programId}/participants`),
-        api.get(`/fest/judge/programs/${programId}/my-marks`).catch(() => ({ data: {} }))
+        api.get(`/fest/judge/programs/${programId}/my-marks`).catch(() => ({ data: {} })),
+        api.get(`/fest/judge/programs/${programId}/judges`).catch(() => ({ data: [] }))
       ]);
       setParticipants(partRes.data);
+      setProgramJudges(judgesRes.data);
       setSavedMarks(marksRes.data || {});
-      // Pre-fill marks from saved marks
-      const prefilled: Record<number, string> = {};
+      
+      const prefilled: Record<number, Record<string, string>> = {};
       partRes.data.forEach((p: any) => {
-        if (marksRes.data?.[p.registration_id] !== undefined) {
-          prefilled[p.registration_id] = String(marksRes.data[p.registration_id]);
+        if (marksRes.data?.[p.registration_id]) {
+          prefilled[p.registration_id] = {};
+          for (const [judgeName, mark] of Object.entries(marksRes.data[p.registration_id])) {
+            prefilled[p.registration_id][judgeName] = String(mark);
+          }
         }
       });
-      setMarks(prev => ({ ...prefilled, ...prev }));
+      setMarks(prev => {
+        const merged = { ...prev };
+        for (const [regId, judgeMarks] of Object.entries(prefilled)) {
+          merged[Number(regId)] = { ...(merged[Number(regId)] || {}), ...judgeMarks };
+        }
+        return merged;
+      });
       setLastRefreshed(new Date());
     } catch (err) {
       console.error(err);
@@ -64,15 +84,26 @@ export default function JudgeDashboard() {
     };
   }, [selectedProgram, fetchParticipants]);
 
-  const handleMarkChange = (regId: number, val: string) => {
-    setMarks({ ...marks, [regId]: val });
+  const handleMarkChange = (regId: number, judgeName: string, val: string) => {
+    setMarks(prev => ({
+      ...prev,
+      [regId]: {
+        ...(prev[regId] || {}),
+        [judgeName]: val
+      }
+    }));
   };
 
-  const submitMark = async (regId: number) => {
+  const submitMark = async (regId: number, judgeName: string) => {
     try {
-      await api.post('/fest/judge/mark', { registration_id: regId, mark: marks[regId] });
-      setSavedMarks(prev => ({ ...prev, [regId]: parseFloat(marks[regId]) }));
-      // Brief success flash instead of alert
+      await api.post('/fest/judge/mark', { registration_id: regId, judge_name: judgeName, mark: marks[regId][judgeName] });
+      setSavedMarks(prev => ({
+        ...prev,
+        [regId]: {
+          ...(prev[regId] || {}),
+          [judgeName]: parseFloat(marks[regId][judgeName])
+        }
+      }));
     } catch (err) {
       console.error(err);
       alert('Failed to submit mark');
@@ -160,34 +191,61 @@ export default function JudgeDashboard() {
               </div>
             </div>
             <div className="p-4 space-y-4">
+              {selectedProgram.status !== 'live' && (
+                <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-sm font-medium text-center">
+                  This program is not currently live. You can only submit marks while the program is active.
+                </div>
+              )}
               {participants.map((p: any) => {
-                const isSaved = savedMarks[p.registration_id] !== undefined;
+                const allSaved = programJudges.length > 0 && programJudges.every(j => savedMarks[p.registration_id]?.[j.judge_name] !== undefined);
+                
                 return (
-                  <div key={p.registration_id} className={`flex items-center justify-between p-4 rounded-lg border transition-all ${isSaved ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-100'}`}>
-                    <div className="flex items-center gap-4">
+                  <div key={p.registration_id} className={`p-4 rounded-lg border transition-all ${allSaved ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-100'}`}>
+                    <div className="flex items-center gap-4 mb-4">
                       <div className="w-12 h-12 bg-[#14532D]/10 text-[#14532D] font-bold text-xl rounded-lg flex items-center justify-center">
                         {p.code_letter}
                       </div>
-                      {isSaved && (
-                        <span className="text-xs text-emerald-600 font-medium">✓ Saved ({savedMarks[p.registration_id]})</span>
+                      <div className="font-semibold text-slate-800">Code {p.code_letter}</div>
+                      {allSaved && (
+                        <span className="text-xs text-emerald-600 font-bold ml-auto px-2 py-1 bg-emerald-100 rounded">✓ All Marks Saved</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="number" 
-                        placeholder="Marks" 
-                        value={marks[p.registration_id] || ''}
-                        onChange={(e) => handleMarkChange(p.registration_id, e.target.value)}
-                        className="w-20 sm:w-24 px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D]"
-                      />
-                      <button 
-                        onClick={() => submitMark(p.registration_id)}
-                        disabled={!marks[p.registration_id]}
-                        className="p-2 bg-[#14532D] text-white rounded-md hover:bg-[#14532D]/90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
-                      >
-                        <CheckCircle size={18} />
-                      </button>
-                    </div>
+                    
+                    {programJudges.length === 0 ? (
+                      <p className="text-sm text-amber-600 italic">No judges assigned to this program.</p>
+                    ) : (
+                      <div className="space-y-3 pl-2 sm:pl-16">
+                        {programJudges.map(j => {
+                          const isSaved = savedMarks[p.registration_id]?.[j.judge_name] !== undefined;
+                          return (
+                            <div key={j.id} className="flex items-center justify-between gap-2 p-2 bg-white rounded border border-slate-100">
+                              <div className="text-sm font-medium text-slate-700 flex-1 truncate pr-2">
+                                {j.judge_name}
+                                {isSaved && <span className="ml-2 text-[10px] text-emerald-600 font-bold">✓ {savedMarks[p.registration_id][j.judge_name]}</span>}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input 
+                                  type="number" 
+                                  placeholder="Mark" 
+                                  value={marks[p.registration_id]?.[j.judge_name] || ''}
+                                  onChange={(e) => handleMarkChange(p.registration_id, j.judge_name, e.target.value)}
+                                  disabled={selectedProgram.status !== 'live'}
+                                  className="w-20 px-3 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] disabled:opacity-50 disabled:bg-slate-100"
+                                />
+                                <button 
+                                  onClick={() => submitMark(p.registration_id, j.judge_name)}
+                                  disabled={!marks[p.registration_id]?.[j.judge_name] || selectedProgram.status !== 'live'}
+                                  className="p-1.5 bg-[#14532D] text-white rounded hover:bg-[#14532D]/90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                                  title="Submit Mark"
+                                >
+                                  <CheckCircle size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
