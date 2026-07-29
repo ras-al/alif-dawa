@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, Users, Trophy, Activity, Award, Zap, TrendingUp, Radio, ChevronRight, ClipboardEdit, Check, X, Download, Loader2, Lock, Volume2 } from 'lucide-react';
+import { Bell, Users, Trophy, Activity, Award, Zap, TrendingUp, Radio, ChevronRight, ClipboardEdit, Check, X, Download, Loader2, Lock } from 'lucide-react';
 import api from '../../api/client';
 import { usePosterGenerator } from '../../components/ResultPosterGenerator';
 
@@ -45,7 +45,7 @@ export default function LeaderDashboard() {
   const [selectedParticipants, setSelectedParticipants] = useState<number[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('All');
   const notifIdRef = useRef(0);
-  const eventSourceRef = useRef<EventSource | null>(null);
+
 
   const { generatePoster, loadingPosterId, hasTemplate } = usePosterGenerator();
 
