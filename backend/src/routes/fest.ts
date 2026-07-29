@@ -5,6 +5,8 @@ import path from 'path';
 import fs from 'fs';
 import pool from '../db';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+import PDFDocument from 'pdfkit';
 import { AuthRequest } from '../types';
 
 const router = express.Router();
@@ -53,7 +55,7 @@ function sendToTeamLeaders(teamId: number, data: object) {
 router.get('/public/programs', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT p.id, p.title, p.category, p.type, p.status, p.is_called,
+      `SELECT p.id, p.title, p.category, p.type, p.status, p.is_called, p.is_group,
               COUNT(r.id)::int as registered_count
        FROM fest_programs p
        LEFT JOIN fest_registrations r ON r.fest_program_id = p.id
@@ -160,6 +162,71 @@ router.post('/public/pick-code', async (req, res) => {
 });
 
 // ==========================================
+// SSE NOTIFICATIONS (Custom Auth)
+// ==========================================
+
+// SSE stream for real-time leader notifications
+// Supports token via query parameter since EventSource doesn't support custom headers
+router.get('/leader/notifications/stream', async (req: AuthRequest, res) => {
+  // Extract token from query parameter or Authorization header
+  const token = (req.query.token as string) || req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  let userId: number;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+    if (decoded.role !== 'leader') {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+    userId = decoded.id;
+  } catch (err) {
+    res.status(401).json({ error: 'Invalid token' });
+    return;
+  }
+
+  // Find which team this leader belongs to
+  const teamRes = await pool.query(
+    `SELECT fest_team_id FROM fest_team_leaders WHERE user_id = $1 LIMIT 1`,
+    [userId]
+  );
+  if (teamRes.rows.length === 0) {
+    res.status(403).json({ error: 'You are not assigned to any team' });
+    return;
+  }
+  const teamId = teamRes.rows[0].fest_team_id;
+
+  // Set up SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders();
+
+  // Send initial connection message
+  res.write(`data: ${JSON.stringify({ type: 'CONNECTED', message: 'Leader notification stream connected' })}\n\n`);
+
+  const clientId = ++sseClientId;
+  sseClients.push({ id: clientId, userId, teamId, res });
+
+  // Keep alive every 20s
+  const keepAlive = setInterval(() => {
+    res.write(`: keepalive\n\n`);
+  }, 20000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    const idx = sseClients.findIndex(c => c.id === clientId);
+    if (idx !== -1) sseClients.splice(idx, 1);
+  });
+});
+
+// ==========================================
 // AUTHENTICATED ROUTES
 // ==========================================
 
@@ -255,6 +322,142 @@ router.get('/admin/judges', authorize('admin'), async (req: AuthRequest, res) =>
     const { rows } = await pool.query(`SELECT id, username FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'judge')`);
     res.json(rows);
   } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Get all judge assignments
+router.get('/admin/judge-assignments', authorize('admin'), async (req: AuthRequest, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT pj.id, pj.fest_program_id, pj.judge_id, 
+             p.title as program_title, p.category as program_category,
+             u.username as judge_username
+      FROM fest_program_judges pj
+      JOIN fest_programs p ON pj.fest_program_id = p.id
+      JOIN users u ON pj.judge_id = u.id
+      ORDER BY p.title, u.username
+    `);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Delete a judge assignment
+router.delete('/admin/judge-assignments/:id', authorize('admin'), async (req: AuthRequest, res) => {
+  try {
+    await pool.query(`DELETE FROM fest_program_judges WHERE id = $1`, [req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Fest Settings (leader edit lock, etc.)
+router.get('/admin/fest-settings', authorize('admin'), async (req: AuthRequest, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT key, value FROM settings WHERE key LIKE 'fest_%'`
+    );
+    const settings: Record<string, string> = {};
+    rows.forEach((r: any) => { settings[r.key] = r.value; });
+    res.json(settings);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+router.put('/admin/fest-settings', authorize('admin'), async (req: AuthRequest, res) => {
+  const settings = req.body;
+  try {
+    for (const [key, value] of Object.entries(settings)) {
+      if (!key.startsWith('fest_')) continue;
+      await pool.query(
+        `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP)
+         ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP`,
+        [key, value as string]
+      );
+    }
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Bulk download participant ID cards as PDF
+router.get('/admin/participants/download-cards', authorize('admin'), async (req: AuthRequest, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT p.id, p.chest_number, p.category, s.name as student_name, s.admission_number, t.name as team_name
+      FROM fest_participants p
+      JOIN students s ON p.student_id = s.id
+      JOIN fest_teams t ON p.fest_team_id = t.id
+      ORDER BY t.name, p.chest_number ASC
+    `);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'No participants found' });
+    }
+
+    const doc = new PDFDocument({ size: 'A4', margin: 30 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="participant-id-cards.pdf"');
+    doc.pipe(res);
+
+    const cardWidth = 250;
+    const cardHeight = 150;
+    const cardsPerRow = 2;
+    const cardsPerPage = 8;
+    const gapX = 15;
+    const gapY = 15;
+    const startX = 30;
+    const startY = 30;
+
+    rows.forEach((p: any, i: number) => {
+      const posOnPage = i % cardsPerPage;
+      if (i > 0 && posOnPage === 0) doc.addPage();
+
+      const col = posOnPage % cardsPerRow;
+      const row = Math.floor(posOnPage / cardsPerRow);
+      const x = startX + col * (cardWidth + gapX);
+      const y = startY + row * (cardHeight + gapY);
+
+      // Card border
+      doc.roundedRect(x, y, cardWidth, cardHeight, 8).stroke('#14532D');
+
+      // Header bar
+      doc.save();
+      doc.roundedRect(x, y, cardWidth, 30, 8).clip();
+      doc.rect(x, y, cardWidth, 30).fill('#14532D');
+      doc.restore();
+      doc.rect(x, y + 22, cardWidth, 8).fill('#14532D');
+
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#FFFFFF');
+      doc.text('ALIF DAWA FEST', x + 10, y + 9, { width: cardWidth - 20 });
+
+      // Chest number (large)
+      doc.font('Helvetica-Bold').fontSize(36).fillColor('#14532D');
+      doc.text(String(p.chest_number), x + 10, y + 40, { width: 80, align: 'center' });
+
+      // Info
+      doc.font('Helvetica-Bold').fontSize(11).fillColor('#1e293b');
+      doc.text(p.student_name, x + 100, y + 40, { width: cardWidth - 110 });
+
+      doc.font('Helvetica').fontSize(8).fillColor('#64748b');
+      doc.text(`Team: ${p.team_name}`, x + 100, y + 58, { width: cardWidth - 110 });
+      doc.text(`Category: ${p.category || 'N/A'}`, x + 100, y + 70, { width: cardWidth - 110 });
+      doc.text(`Adm: ${p.admission_number}`, x + 100, y + 82, { width: cardWidth - 110 });
+
+      // Bottom line
+      doc.moveTo(x + 10, y + cardHeight - 20).lineTo(x + cardWidth - 10, y + cardHeight - 20).stroke('#e2e8f0');
+      doc.font('Helvetica').fontSize(6).fillColor('#94a3b8');
+      doc.text('Participant ID Card', x + 10, y + cardHeight - 15, { width: cardWidth - 20, align: 'center' });
+    });
+
+    doc.end();
+  } catch (err: any) {
+    console.error('Bulk download error:', err);
     res.status(500).json({ error: err.message || 'Server error' });
   }
 });
@@ -436,11 +639,11 @@ router.get('/judge/programs', authorize('judge', 'admin'), async (req: AuthReque
     // If admin, they see all programs
     // If judge, they see only their assigned programs
     const userId = req.user?.id;
-    let query = `SELECT id, title, category, type, status, is_called FROM fest_programs`;
+    let query = `SELECT id, title, category, type, status, is_called, is_group FROM fest_programs`;
     let params: any[] = [];
     
     if (req.user?.role === 'judge') {
-        query = `SELECT p.id, p.title, p.category, p.type, p.status, p.is_called 
+        query = `SELECT p.id, p.title, p.category, p.type, p.status, p.is_called, p.is_group 
                  FROM fest_programs p
                  JOIN fest_program_judges pj ON p.id = pj.fest_program_id
                  WHERE pj.judge_id = $1`;
@@ -449,6 +652,27 @@ router.get('/judge/programs', authorize('judge', 'admin'), async (req: AuthReque
     
     const { rows } = await pool.query(query, params);
     res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get judge's own marks for a program
+router.get('/judge/programs/:programId/my-marks', authorize('judge'), async (req: AuthRequest, res) => {
+  const { programId } = req.params;
+  const judgeId = req.user?.id;
+  try {
+    const { rows } = await pool.query(
+      `SELECT m.fest_registration_id as registration_id, m.mark
+       FROM fest_marks m
+       JOIN fest_registrations r ON m.fest_registration_id = r.id
+       WHERE r.fest_program_id = $1 AND m.judge_id = $2`,
+      [programId, judgeId]
+    );
+    const marksMap: Record<number, number> = {};
+    rows.forEach((r: any) => { marksMap[r.registration_id] = parseFloat(r.mark); });
+    res.json(marksMap);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -591,16 +815,20 @@ router.post('/announcer/publish', authorize('announcer', 'admin'), async (req: A
 // Stage Admin Routes
 router.get('/stage-admin/programs/:id/participants', authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
   try {
+    // Also return program info (is_group) for the frontend
+    const progRes = await pool.query(`SELECT is_group FROM fest_programs WHERE id = $1`, [req.params.id]);
+    const isGroup = progRes.rows.length > 0 ? progRes.rows[0].is_group : false;
+
     const { rows } = await pool.query(`
-      SELECT r.id as registration_id, r.code_letter, p.chest_number, s.name as student_name, t.name as team_name
+      SELECT r.id as registration_id, r.code_letter, p.chest_number, s.name as student_name, t.name as team_name, t.id as team_id
       FROM fest_registrations r
       JOIN fest_participants p ON r.fest_participant_id = p.id
       JOIN students s ON p.student_id = s.id
       JOIN fest_teams t ON p.fest_team_id = t.id
       WHERE r.fest_program_id = $1
-      ORDER BY p.chest_number ASC
+      ORDER BY t.name ASC, p.chest_number ASC
     `, [req.params.id]);
-    res.json(rows);
+    res.json({ participants: rows, is_group: isGroup });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Server error' });
   }
@@ -649,9 +877,10 @@ router.post('/stage-admin/generate-code', authorize('stage_admin', 'admin'), asy
 
     try {
       const partInfo = await pool.query(
-        `SELECT p.chest_number, p.fest_team_id, s.name as student_name, pr.title as program_title
+        `SELECT p.chest_number, p.fest_team_id, s.name as student_name, pr.title as program_title, pr.is_group, t.name as team_name
          FROM fest_participants p
          JOIN students s ON p.student_id = s.id
+         JOIN fest_teams t ON p.fest_team_id = t.id
          JOIN fest_registrations reg ON reg.fest_participant_id = p.id
          JOIN fest_programs pr ON reg.fest_program_id = pr.id
          WHERE p.id = $1 AND reg.id = $2`,
@@ -659,12 +888,29 @@ router.post('/stage-admin/generate-code', authorize('stage_admin', 'admin'), asy
       );
       if (partInfo.rows.length > 0) {
         const info = partInfo.rows[0];
+
+        // If it's a group event, assign the same code to all team members registered for this program
+        if (info.is_group) {
+          await pool.query(
+            `UPDATE fest_registrations 
+             SET code_letter = $1 
+             WHERE fest_program_id = $2 
+             AND fest_participant_id IN (
+               SELECT id FROM fest_participants WHERE fest_team_id = $3
+             )`,
+            [code_letter, programId, info.fest_team_id]
+          );
+        }
+
+        const displayName = info.is_group ? `Team ${info.team_name}` : info.student_name;
+        const displayChest = info.is_group ? 'Group' : info.chest_number;
+
         // Store in DB
         await pool.query(
           `INSERT INTO fest_notifications (type, program_id, title, data) VALUES ($1, $2, $3, $4)`,
           ['PARTICIPANT_REPORTED', programId, info.program_title, JSON.stringify({
-            student_name: info.student_name,
-            chest_number: info.chest_number,
+            student_name: displayName,
+            chest_number: displayChest,
             program_title: info.program_title,
             code_letter,
           })]
@@ -674,8 +920,8 @@ router.post('/stage-admin/generate-code', authorize('stage_admin', 'admin'), asy
           type: 'PARTICIPANT_REPORTED',
           timestamp: new Date().toISOString(),
           data: {
-            student_name: info.student_name,
-            chest_number: info.chest_number,
+            student_name: displayName,
+            chest_number: displayChest,
             program_title: info.program_title,
             code_letter,
           }
@@ -717,35 +963,76 @@ router.post('/stage-admin/reset-program-codes', authorize('stage_admin', 'admin'
 router.post('/stage-admin/randomize-program-codes', authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
   const { program_id } = req.body;
   try {
+    // Check if program is group event
+    const progRes = await pool.query(`SELECT is_group FROM fest_programs WHERE id = $1`, [program_id]);
+    const isGroup = progRes.rows.length > 0 ? progRes.rows[0].is_group : false;
+
     // Clear all existing codes for this program
     await pool.query(`UPDATE fest_registrations SET code_letter = NULL WHERE fest_program_id = $1`, [program_id]);
     
-    // Fetch all registrations for this program
-    const regRes = await pool.query(`SELECT id FROM fest_registrations WHERE fest_program_id = $1 ORDER BY id`, [program_id]);
-    const regs = regRes.rows;
-
+    let targetCount = 0;
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-    let poolLetters = regs.length <= 26 ? letters.slice(0, Math.max(regs.length, 1)) : [...letters];
-    if (regs.length > letters.length) {
-      for (let i = 0; i < letters.length && poolLetters.length < regs.length; i++) {
-        for (let j = 0; j < letters.length && poolLetters.length < regs.length; j++) {
-          poolLetters.push(letters[i] + letters[j]);
+
+    if (isGroup) {
+      // Group event: fetch distinct teams
+      const teamRes = await pool.query(`
+        SELECT DISTINCT p.fest_team_id 
+        FROM fest_registrations reg
+        JOIN fest_participants p ON reg.fest_participant_id = p.id
+        WHERE reg.fest_program_id = $1
+      `, [program_id]);
+      const teams = teamRes.rows;
+      targetCount = teams.length;
+
+      let poolLetters = targetCount <= 26 ? letters.slice(0, Math.max(targetCount, 1)) : [...letters];
+      if (targetCount > letters.length) {
+        for (let i = 0; i < letters.length && poolLetters.length < targetCount; i++) {
+          for (let j = 0; j < letters.length && poolLetters.length < targetCount; j++) {
+            poolLetters.push(letters[i] + letters[j]);
+          }
         }
+      }
+
+      for (let i = poolLetters.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [poolLetters[i], poolLetters[j]] = [poolLetters[j], poolLetters[i]];
+      }
+
+      for (let i = 0; i < teams.length; i++) {
+        await pool.query(`
+          UPDATE fest_registrations 
+          SET code_letter = $1 
+          WHERE fest_program_id = $2 AND fest_participant_id IN (
+            SELECT id FROM fest_participants WHERE fest_team_id = $3
+          )
+        `, [poolLetters[i], program_id, teams[i].fest_team_id]);
+      }
+    } else {
+      // Solo event: fetch all registrations
+      const regRes = await pool.query(`SELECT id FROM fest_registrations WHERE fest_program_id = $1 ORDER BY id`, [program_id]);
+      const regs = regRes.rows;
+      targetCount = regs.length;
+
+      let poolLetters = targetCount <= 26 ? letters.slice(0, Math.max(targetCount, 1)) : [...letters];
+      if (targetCount > letters.length) {
+        for (let i = 0; i < letters.length && poolLetters.length < targetCount; i++) {
+          for (let j = 0; j < letters.length && poolLetters.length < targetCount; j++) {
+            poolLetters.push(letters[i] + letters[j]);
+          }
+        }
+      }
+
+      for (let i = poolLetters.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [poolLetters[i], poolLetters[j]] = [poolLetters[j], poolLetters[i]];
+      }
+
+      for (let i = 0; i < regs.length; i++) {
+        await pool.query(`UPDATE fest_registrations SET code_letter = $1 WHERE id = $2`, [poolLetters[i], regs[i].id]);
       }
     }
 
-    // Shuffle poolLetters (Fisher-Yates)
-    for (let i = poolLetters.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [poolLetters[i], poolLetters[j]] = [poolLetters[j], poolLetters[i]];
-    }
-
-    // Assign shuffled code letters to each registration
-    for (let i = 0; i < regs.length; i++) {
-      await pool.query(`UPDATE fest_registrations SET code_letter = $1 WHERE id = $2`, [poolLetters[i], regs[i].id]);
-    }
-
-    res.json({ success: true, count: regs.length });
+    res.json({ success: true, count: targetCount });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Server error' });
   }
@@ -754,48 +1041,6 @@ router.post('/stage-admin/randomize-program-codes', authorize('stage_admin', 'ad
 // ==========================================
 // LEADER ROUTES
 // ==========================================
-
-// SSE stream for real-time leader notifications
-router.get('/leader/notifications/stream', authenticate, authorize('leader'), async (req: AuthRequest, res) => {
-  const userId = req.user!.id;
-
-  // Find which team this leader belongs to
-  const teamRes = await pool.query(
-    `SELECT fest_team_id FROM fest_team_leaders WHERE user_id = $1 LIMIT 1`,
-    [userId]
-  );
-  if (teamRes.rows.length === 0) {
-    res.status(403).json({ error: 'You are not assigned to any team' });
-    return;
-  }
-  const teamId = teamRes.rows[0].fest_team_id;
-
-  // Set up SSE headers
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no',
-  });
-  res.flushHeaders();
-
-  // Send initial connection message
-  res.write(`data: ${JSON.stringify({ type: 'CONNECTED', message: 'Leader notification stream connected' })}\n\n`);
-
-  const clientId = ++sseClientId;
-  sseClients.push({ id: clientId, userId, teamId, res });
-
-  // Keep alive every 30s
-  const keepAlive = setInterval(() => {
-    res.write(`: keepalive\n\n`);
-  }, 30000);
-
-  req.on('close', () => {
-    clearInterval(keepAlive);
-    const idx = sseClients.findIndex(c => c.id === clientId);
-    if (idx !== -1) sseClients.splice(idx, 1);
-  });
-});
 
 // Leader dashboard data: team info, participants, points
 router.get('/leader/dashboard', authenticate, authorize('leader'), async (req: AuthRequest, res) => {
@@ -885,6 +1130,10 @@ router.get('/leader/dashboard', authenticate, authorize('leader'), async (req: A
        ORDER BY title ASC`
     );
 
+    // Check leader edit lock status
+    const lockRes = await pool.query(`SELECT value FROM settings WHERE key = 'fest_leader_edit_locked'`);
+    const leaderEditLocked = lockRes.rows.length > 0 && lockRes.rows[0].value === 'true';
+
     res.json({
       team: {
         id: team.fest_team_id,
@@ -898,6 +1147,7 @@ router.get('/leader/dashboard', authenticate, authorize('leader'), async (req: A
       leaderboard: leaderboardRes.rows,
       notifications: notifsRes.rows,
       active_calls: activeCallsRes.rows,
+      leader_edit_locked: leaderEditLocked,
     });
   } catch (err: any) {
     console.error(err);
@@ -1068,6 +1318,12 @@ router.post('/leader/programs/:id/register', authenticate, authorize('leader'), 
   const programId = req.params.id;
   const { participantIds } = req.body;
   try {
+    // Check leader edit lock
+    const lockRes = await pool.query(`SELECT value FROM settings WHERE key = 'fest_leader_edit_locked'`);
+    if (lockRes.rows.length > 0 && lockRes.rows[0].value === 'true') {
+      return res.status(403).json({ error: 'Registration editing is currently disabled by the admin.' });
+    }
+
     const userId = req.user!.id;
     const teamRes = await pool.query(`SELECT fest_team_id FROM fest_team_leaders WHERE user_id = $1 LIMIT 1`, [userId]);
     if (teamRes.rows.length === 0) return res.status(403).json({ error: 'No team assigned' });
@@ -1135,6 +1391,12 @@ router.delete('/leader/programs/:id/register', authenticate, authorize('leader')
   const { participantId } = req.body;
   
   try {
+    // Check leader edit lock
+    const lockRes = await pool.query(`SELECT value FROM settings WHERE key = 'fest_leader_edit_locked'`);
+    if (lockRes.rows.length > 0 && lockRes.rows[0].value === 'true') {
+      return res.status(403).json({ error: 'Registration editing is currently disabled by the admin.' });
+    }
+
     const userId = req.user!.id;
     const teamRes = await pool.query(`SELECT fest_team_id FROM fest_team_leaders WHERE user_id = $1 LIMIT 1`, [userId]);
     if (teamRes.rows.length === 0) return res.status(403).json({ error: 'No team assigned' });

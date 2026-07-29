@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, Users, Trophy, Activity, Award, Zap, TrendingUp, Radio, ChevronRight, ClipboardEdit, Check, X, Download, Loader2 } from 'lucide-react';
+import { Bell, Users, Trophy, Activity, Award, Zap, TrendingUp, Radio, ChevronRight, ClipboardEdit, Check, X, Download, Loader2, Lock, Volume2 } from 'lucide-react';
 import api from '../../api/client';
 import { usePosterGenerator } from '../../components/ResultPosterGenerator';
 
@@ -30,6 +30,7 @@ interface DashboardData {
   leaderboard: { id: number; team_name: string; total_points: number }[];
   notifications?: { id: number; type: string; data: any; timestamp?: string }[];
   active_calls?: { id: number; title: string; category: string }[];
+  leader_edit_locked?: boolean;
 }
 
 export default function LeaderDashboard() {
@@ -67,101 +68,97 @@ export default function LeaderDashboard() {
     }
   }, []);
 
-  // SSE connection
+  // Play a notification beep using Web Audio API
+  const playNotifBeep = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      osc.type = 'sine';
+      gain.gain.value = 0.15;
+      osc.start();
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.stop(ctx.currentTime + 0.3);
+    } catch { /* ignore audio errors */ }
+  }, []);
+
+  // SSE connection using native EventSource with token as query param
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) return;
+    let es: EventSource | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
 
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const url = `${apiBase}/fest/leader/notifications/stream`;
+    const connect = () => {
+      if (closed) return;
+      const token = localStorage.getItem('accessToken');
+      if (!token) return;
 
-    const es = new EventSource(url, { withCredentials: false } as any);
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const url = `${apiBase}/fest/leader/notifications/stream?token=${encodeURIComponent(token)}`;
 
-    // EventSource doesn't support custom headers natively.
-    // We'll use a fetch-based SSE approach instead.
-    es.close();
+      es = new EventSource(url);
 
-    // Use fetch-based SSE for auth header support
-    const controller = new AbortController();
-
-    (async () => {
-      try {
-        const response = await fetch(url, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          signal: controller.signal,
-        });
-
-        if (!response.ok || !response.body) {
-          console.error('SSE connection failed');
-          return;
-        }
-
+      es.onopen = () => {
         setConnected(true);
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
+      };
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+      es.onmessage = (event) => {
+        // Any message means we're connected
+        setConnected(true);
+        try {
+          const parsed = JSON.parse(event.data);
+          if (parsed.type === 'CONNECTED') return;
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const parsed = JSON.parse(line.slice(6));
-                if (parsed.type === 'CONNECTED') continue;
-
-                if (parsed.type === 'PROGRAM_CALL_REVOKED') {
-                  // Remove call notification for this program
-                  setNotifications(prev => prev.filter(n => n.data?.program_id !== parsed.data?.program_id));
-                } else if (parsed.type === 'PROGRAM_LIVE') {
-                  const notif: Notification = {
-                    id: ++notifIdRef.current,
-                    ...parsed,
-                  };
-                  // Remove any previous call notification for this program and add live notification
-                  setNotifications(prev => [notif, ...prev.filter(n => n.data?.program_id !== parsed.data?.program_id)].slice(0, 50));
-                } else {
-                  const notif: Notification = {
-                    id: ++notifIdRef.current,
-                    ...parsed,
-                  };
-                  setNotifications(prev => [notif, ...prev].slice(0, 50));
-                }
-
-                // Refresh dashboard data on meaningful events
-                if (parsed.type === 'PARTICIPANT_REPORTED' || parsed.type === 'PROGRAM_LIVE' || parsed.type === 'PROGRAM_CALL' || parsed.type === 'PROGRAM_CALL_REVOKED') {
-                  loadDashboard();
-                }
-              } catch {
-                // ignore parse errors
-              }
-            }
+          if (parsed.type === 'PROGRAM_CALL_REVOKED') {
+            setNotifications(prev => prev.filter(n => n.data?.program_id !== parsed.data?.program_id));
+          } else if (parsed.type === 'PROGRAM_LIVE') {
+            const notif: Notification = { id: ++notifIdRef.current, ...parsed };
+            setNotifications(prev => [notif, ...prev.filter(n => n.data?.program_id !== parsed.data?.program_id)].slice(0, 50));
+            playNotifBeep();
+          } else {
+            const notif: Notification = { id: ++notifIdRef.current, ...parsed };
+            setNotifications(prev => [notif, ...prev].slice(0, 50));
+            if (parsed.type === 'PROGRAM_CALL') playNotifBeep();
           }
-        }
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          console.error('SSE error:', err);
-          setConnected(false);
-        }
-      }
-    })();
 
-    eventSourceRef.current = es;
+          // Refresh dashboard data on meaningful events
+          if (['PARTICIPANT_REPORTED', 'PROGRAM_LIVE', 'PROGRAM_CALL', 'PROGRAM_CALL_REVOKED'].includes(parsed.type)) {
+            loadDashboard();
+          }
+        } catch { /* ignore parse errors */ }
+      };
+
+      es.onerror = () => {
+        setConnected(false);
+        if (es) es.close();
+        
+        // If it failed, the token might be expired. Trigger an API call 
+        // to force the Axios interceptor to refresh the token if needed.
+        loadDashboard();
+
+        // Retry connection after a short delay so the token has time to refresh
+        if (!closed) {
+          retryTimeout = setTimeout(connect, 4000);
+        }
+      };
+    };
+
+    connect();
 
     return () => {
-      controller.abort();
+      closed = true;
+      if (es) es.close();
+      if (retryTimeout) clearTimeout(retryTimeout);
       setConnected(false);
     };
-  }, [loadDashboard]);
+  }, [loadDashboard, playNotifBeep]);
 
   useEffect(() => {
     loadDashboard();
-    const interval = setInterval(loadDashboard, 30000);
+    const interval = setInterval(loadDashboard, 15000);
     return () => clearInterval(interval);
   }, [loadDashboard]);
 
@@ -243,6 +240,17 @@ export default function LeaderDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Edit Lock Banner */}
+      {data?.leader_edit_locked && (
+        <div className="mb-6 bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+          <div className="p-2 bg-rose-100 rounded-lg text-rose-600"><Lock size={20} /></div>
+          <div>
+            <p className="font-bold text-rose-900 text-sm">Registration Editing Locked</p>
+            <p className="text-xs text-rose-700">The admin has disabled participant registration modifications. Contact the organizer if changes are needed.</p>
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
@@ -516,9 +524,11 @@ export default function LeaderDashboard() {
                                   setManageProgram(p);
                                   setSelectedParticipants(p.registered_participants.map((rp: any) => rp.id));
                                 }}
-                                className="px-4 py-2 bg-white border border-slate-200 shadow-sm rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:text-[#14532D] hover:border-emerald-200 transition-colors"
+                                disabled={!!data?.leader_edit_locked}
+                                title={data?.leader_edit_locked ? 'Registration editing is locked by admin' : ''}
+                                className={`px-4 py-2 bg-white border border-slate-200 shadow-sm rounded-lg text-sm font-semibold transition-colors ${data?.leader_edit_locked ? 'text-slate-400 cursor-not-allowed opacity-60' : 'text-slate-700 hover:bg-slate-50 hover:text-[#14532D] hover:border-emerald-200'}`}
                               >
-                                Manage
+                                {data?.leader_edit_locked ? '🔒 Locked' : 'Manage'}
                               </button>
                             </td>
                           </tr>
@@ -730,7 +740,7 @@ export default function LeaderDashboard() {
               <button onClick={() => setManageProgram(null)} className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-200 rounded-lg transition-colors">Cancel</button>
               <button
                 onClick={handleSaveRegistration}
-                disabled={savingRegistration || (manageProgram.team_limit !== null && selectedParticipants.length > manageProgram.team_limit)}
+                disabled={savingRegistration || !!data?.leader_edit_locked || (manageProgram.team_limit !== null && selectedParticipants.length > manageProgram.team_limit)}
                 className="px-6 py-2 bg-[#14532D] text-white font-bold rounded-lg shadow-sm hover:bg-[#0f4022] transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {savingRegistration ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} Save Participants

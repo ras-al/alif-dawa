@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Target, Activity, Trash2, Plus, UserPlus, Trophy, ChevronRight, UserCircle, Info, Award, Image as ImageIcon, Save } from 'lucide-react';
+import { Users, Target, Activity, Trash2, Plus, UserPlus, Trophy, ChevronRight, UserCircle, Info, Award, Image as ImageIcon, Save, Download, Lock, Unlock } from 'lucide-react';
 import api from '../../api/client';
 
 export default function AdminFestDashboard() {
@@ -13,6 +13,10 @@ export default function AdminFestDashboard() {
   const [students, setStudents] = useState([]);
   const [results, setResults] = useState([]);
   const [posterTemplate, setPosterTemplate] = useState<any>(null);
+  const [judgeAssignments, setJudgeAssignments] = useState([]);
+  const [festSettings, setFestSettings] = useState<Record<string, string>>({});
+  const [lockToggling, setLockToggling] = useState(false);
+  const [downloadingCards, setDownloadingCards] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const tabs = [
@@ -50,7 +54,7 @@ export default function AdminFestDashboard() {
 
   const loadData = async () => {
     try {
-      const [progRes, teamRes, judgeRes, userRes, partRes, regRes, studRes, resultRes, posterRes] = await Promise.allSettled([
+      const [progRes, teamRes, judgeRes, userRes, partRes, regRes, studRes, resultRes, posterRes, assignRes, settingsRes] = await Promise.allSettled([
         api.get('/fest/public/programs'),
         api.get('/fest/admin/teams'),
         api.get('/fest/admin/judges'),
@@ -59,7 +63,9 @@ export default function AdminFestDashboard() {
         api.get('/fest/admin/registrations'),
         api.get('/students'),
         api.get('/fest/admin/results'),
-        api.get('/fest/public/poster-template')
+        api.get('/fest/public/poster-template'),
+        api.get('/fest/admin/judge-assignments'),
+        api.get('/fest/admin/fest-settings')
       ]);
       
       if (progRes.status === 'fulfilled') setPrograms(progRes.value.data);
@@ -76,6 +82,8 @@ export default function AdminFestDashboard() {
           setPosterConfig(posterRes.value.data.config);
         }
       }
+      if (assignRes.status === 'fulfilled') setJudgeAssignments(assignRes.value.data);
+      if (settingsRes.status === 'fulfilled') setFestSettings(settingsRes.value.data);
       
       setStats({
         programs: progRes.status === 'fulfilled' ? progRes.value.data.length : 0,
@@ -145,8 +153,58 @@ export default function AdminFestDashboard() {
       });
       alert('Judge assigned successfully!');
       setAssignJudge({ program_id: '', judge_id: '' });
+      // Reload judge assignments
+      const res = await api.get('/fest/admin/judge-assignments');
+      setJudgeAssignments(res.data);
     } catch (err) {
       alert('Failed to assign judge');
+    }
+  };
+
+  const handleDeleteJudgeAssignment = async (id: number) => {
+    if (!confirm('Remove this judge assignment?')) return;
+    try {
+      await api.delete(`/fest/admin/judge-assignments/${id}`);
+      const res = await api.get('/fest/admin/judge-assignments');
+      setJudgeAssignments(res.data);
+    } catch (err) {
+      alert('Failed to remove assignment');
+    }
+  };
+
+  const handleToggleEditLock = async () => {
+    const currentlyLocked = festSettings.fest_leader_edit_locked === 'true';
+    setLockToggling(true);
+    try {
+      await api.put('/fest/admin/fest-settings', {
+        fest_leader_edit_locked: currentlyLocked ? 'false' : 'true'
+      });
+      setFestSettings(prev => ({ ...prev, fest_leader_edit_locked: currentlyLocked ? 'false' : 'true' }));
+    } catch (err) {
+      alert('Failed to update lock setting');
+    } finally {
+      setLockToggling(false);
+    }
+  };
+
+  const handleBulkDownloadCards = async () => {
+    setDownloadingCards(true);
+    try {
+      const response = await api.get('/fest/admin/participants/download-cards', {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'participant-id-cards.pdf');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Failed to download cards. Make sure participants exist.');
+    } finally {
+      setDownloadingCards(false);
     }
   };
 
@@ -299,19 +357,51 @@ export default function AdminFestDashboard() {
 
         <div className="p-6 md:p-8">
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <div onClick={() => setActiveTab('programs')} className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#14532D]/50 hover:shadow-md transition-all group">
-                <div className="p-4 bg-emerald-50 rounded-full text-emerald-600 group-hover:scale-110 transition-transform"><Trophy size={28} /></div>
-                <div className="text-center"><p className="text-3xl font-bold text-slate-900">{stats.programs}</p><p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Programs</p></div>
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div onClick={() => setActiveTab('programs')} className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#14532D]/50 hover:shadow-md transition-all group">
+                  <div className="p-4 bg-emerald-50 rounded-full text-emerald-600 group-hover:scale-110 transition-transform"><Trophy size={28} /></div>
+                  <div className="text-center"><p className="text-3xl font-bold text-slate-900">{stats.programs}</p><p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Programs</p></div>
+                </div>
+                <div onClick={() => setActiveTab('teams')} className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-blue-500/50 hover:shadow-md transition-all group">
+                  <div className="p-4 bg-blue-50 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><Users size={28} /></div>
+                  <div className="text-center"><p className="text-3xl font-bold text-slate-900">{stats.teams}</p><p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Teams / Groups</p></div>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center gap-3 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-rose-50 rounded-full -mr-12 -mt-12 opacity-50" />
+                  <div className="p-4 bg-rose-50 rounded-full text-rose-600 relative z-10"><Activity size={28} /></div>
+                  <div className="text-center relative z-10"><p className="text-3xl font-bold text-slate-900">{stats.live}</p><p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Live Programs</p></div>
+                </div>
               </div>
-              <div onClick={() => setActiveTab('teams')} className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-blue-500/50 hover:shadow-md transition-all group">
-                <div className="p-4 bg-blue-50 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><Users size={28} /></div>
-                <div className="text-center"><p className="text-3xl font-bold text-slate-900">{stats.teams}</p><p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Teams / Groups</p></div>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center gap-3 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-rose-50 rounded-full -mr-12 -mt-12 opacity-50" />
-                <div className="p-4 bg-rose-50 rounded-full text-rose-600 relative z-10"><Activity size={28} /></div>
-                <div className="text-center relative z-10"><p className="text-3xl font-bold text-slate-900">{stats.live}</p><p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Live Programs</p></div>
+
+              {/* Leader Edit Lock Toggle */}
+              <div className="bg-white border border-slate-200 rounded-xl p-6">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-xl ${festSettings.fest_leader_edit_locked === 'true' ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                      {festSettings.fest_leader_edit_locked === 'true' ? <Lock size={24} /> : <Unlock size={24} />}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900">Leader Registration Lock</h3>
+                      <p className="text-sm text-slate-500">
+                        {festSettings.fest_leader_edit_locked === 'true' 
+                          ? 'Leaders are currently LOCKED from editing participant registrations.' 
+                          : 'Leaders can currently edit participant registrations freely.'}
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={handleToggleEditLock}
+                    disabled={lockToggling}
+                    className={`px-5 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm disabled:opacity-60 ${
+                      festSettings.fest_leader_edit_locked === 'true'
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : 'bg-rose-600 hover:bg-rose-700 text-white'
+                    }`}
+                  >
+                    {festSettings.fest_leader_edit_locked === 'true' ? <><Unlock size={16} /> Unlock Editing</> : <><Lock size={16} /> Lock Editing</>}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -468,7 +558,41 @@ export default function AdminFestDashboard() {
                 )}
               </div>
               
-              {/* Could list existing assignments here in the future */}
+              {/* Existing Judge Assignments Table */}
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">Current Assignments ({judgeAssignments.length})</h3>
+                </div>
+                <div className="overflow-x-auto w-full max-w-full">
+                  <table className="w-full min-w-[500px] text-sm text-left">
+                    <thead className="bg-slate-50/50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-3 text-slate-700 font-semibold text-xs uppercase tracking-wider">Program</th>
+                        <th className="px-6 py-3 text-slate-700 font-semibold text-xs uppercase tracking-wider">Category</th>
+                        <th className="px-6 py-3 text-slate-700 font-semibold text-xs uppercase tracking-wider">Judge</th>
+                        <th className="px-6 py-3 text-slate-700 font-semibold text-xs uppercase tracking-wider text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(judgeAssignments as any[]).map((a: any) => (
+                        <tr key={a.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-6 py-3 font-medium text-slate-900">{a.program_title}</td>
+                          <td className="px-6 py-3"><span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium">{a.program_category}</span></td>
+                          <td className="px-6 py-3">
+                            <span className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-md text-xs font-semibold">{a.judge_username}</span>
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <button onClick={() => handleDeleteJudgeAssignment(a.id)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-2 rounded-lg transition-colors inline-flex items-center justify-center">
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {judgeAssignments.length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">No judge assignments yet. Use the form above to assign judges to programs.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 
@@ -591,7 +715,16 @@ export default function AdminFestDashboard() {
           {activeTab === 'participants' && (
             <div className="space-y-8">
               <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-                <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wide">Register Student as Participant</h3>
+                <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">Register Student as Participant</h3>
+                  <button 
+                    onClick={handleBulkDownloadCards}
+                    disabled={downloadingCards || participants.length === 0}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-all shadow-sm disabled:opacity-50"
+                  >
+                    <Download size={16} /> {downloadingCards ? 'Generating PDF...' : 'Download All ID Cards (PDF)'}
+                  </button>
+                </div>
                 <form onSubmit={handleAddParticipant} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5">Student</label>
