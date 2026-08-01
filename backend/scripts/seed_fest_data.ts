@@ -13,35 +13,30 @@ const teamsData = [
   {
     name: 'Vanguard',
     startChest: 100,
-    leaders: [
-      { name: 'Shahad', is_first: true },
-      { name: 'Irfan', is_first: false }
-    ],
     premier: ['Aswim Thaha', 'Salim KP', 'Shamveel', 'muhammed NK', 'Nabeed', 'Abdhul Bari'],
     junior: ['Habeeb', 'Shihad', 'Afraz', 'Ameen', 'Razi VK', 'Muhammed M', 'Muhammed PP', 'Rabeeb PK', 'Nizam'],
-    senior: ['Anas', 'Sahal kc', 'Vadood', 'Sajad M', 'Shammas', 'Thufail']
+    senior: ['Anas', 'Sahal kc', 'Vadood', 'Sajad M', 'Shammas', 'Thufail', 'Shahad', 'Irfan', 'Afnas']
   },
   {
     name: 'Renegades',
     startChest: 200,
-    leaders: [
-      { name: 'Adhil roshan', is_first: true },
-      { name: 'Labeeb', is_first: false }
-    ],
     premier: ['Aswim PP', 'Abdulla DK', 'Swalih PK', 'Muhammed KP', 'Swalih VK'],
     junior: ['Basheer', 'Simak', 'Rizwan', 'Sajad', 'Asif Ali', 'Ameer', 'Sinan k', 'Vasil', 'Rabeeb AP', 'Shamil', 'Shabeeb'],
-    senior: ['Favas', 'Adnan', 'Asbullah', 'Muhammed EP', 'Shadil']
+    senior: ['Favas', 'Adnan', 'Asbullah', 'Muhammed EP', 'Shadil', 'Adil roshan', 'Labeeb']
   },
   {
     name: 'Divergent',
     startChest: 300,
-    leaders: [
-      { name: 'Shifan', is_first: true },
-      { name: 'Mifthah', is_first: false }
-    ],
     premier: ['Swalih PP', 'Razan', 'Rayyan', 'Yaseen', 'Mukthar'],
     junior: ['Hafiz Rasi', 'Shazin', 'Sabah', 'Fajid', 'Fathih', 'Swalih PP', 'Nabeel', 'Thufail UK', 'Ajmal', 'Jalal'],
-    senior: ['Sajad N', 'Rizwan', 'Ameen T', 'Afnan', 'mishab']
+    senior: ['Sajad N', 'Rizwan', 'Ameen T', 'Afnan', 'mishab', 'Shifan', 'Mifthah']
+  },
+  {
+    name: 'ABC',
+    startChest: 400,
+    premier: ['Test Premier 1', 'Test Premier 2'],
+    junior: ['Test Junior 1', 'Test Junior 2'],
+    senior: ['Test Senior 1', 'Test Senior 2']
   }
 ];
 
@@ -142,28 +137,7 @@ async function seed() {
         console.log(`  - Created Team Login: ${tUsername} (Password: 123456)`);
       }
       
-      // Insert Leaders
-      for (const leader of team.leaders) {
-        const username = leader.name.toLowerCase().replace(/\s+/g, '') + '_leader';
-        
-        let userId;
-        const userCheck = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
-        if (userCheck.rows.length > 0) {
-          userId = userCheck.rows[0].id;
-        } else {
-          const userRes = await pool.query(
-            `INSERT INTO users (username, password_hash, role_id) VALUES ($1, $2, $3) RETURNING id`,
-            [username, defaultPassword, leaderRoleId]
-          );
-          userId = userRes.rows[0].id;
-        }
 
-        await pool.query(
-          `INSERT INTO fest_team_leaders (user_id, fest_team_id, is_first_leader) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-          [userId, teamId, leader.is_first]
-        );
-        console.log(`  - Linked Leader Account: ${username}`);
-      }
 
       let chestNum = team.startChest;
 
