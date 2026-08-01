@@ -55,7 +55,7 @@ function sendToTeamLeaders(teamId: number, data: object) {
 router.get('/public/programs', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT p.id, p.title, p.category, p.type, p.status, p.is_called, p.is_group,
+      `SELECT p.id, p.title, p.category, p.type, p.status, p.is_called, p.is_group, p.team_limit,
               COUNT(r.id)::int as registered_count
        FROM fest_programs p
        LEFT JOIN fest_registrations r ON r.fest_program_id = p.id
@@ -286,6 +286,22 @@ router.put('/admin/programs/:id/status', authorize('admin', 'stage_admin'), asyn
     const { rows } = await pool.query(
       `UPDATE fest_programs SET status = $1 WHERE id = $2 RETURNING *`,
       [status, req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+router.put('/admin/programs/:id', authorize('admin'), async (req: AuthRequest, res) => {
+  const { title, category, type, team_limit, is_group } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE fest_programs 
+       SET title = $1, category = $2, type = $3, team_limit = $4, is_group = $5 
+       WHERE id = $6 RETURNING *`,
+      [title, category, type, team_limit, is_group, req.params.id]
     );
     res.json(rows[0]);
   } catch (err: any) {

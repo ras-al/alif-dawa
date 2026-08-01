@@ -29,7 +29,7 @@ const programs = [
 
   // JUNIOR STAGE
   { title: "Speech malayalam", category: "Junior", type: "stage", count: 4, is_group: false },
-  { title: "Speech english", category: "Junior", type: "stage", count: 2, is_group: false },
+  { title: "Speech english", category: "Junior", type: "stage", count: 3, is_group: false },
   { title: "Speech Arabic", category: "Junior", type: "stage", count: 2, is_group: false },
   { title: "Madh song", category: "Junior", type: "stage", count: 3, is_group: false },
   { title: "Qira'th", category: "Junior", type: "stage", count: 3, is_group: false },
@@ -61,7 +61,7 @@ const programs = [
 
   // SENIOR STAGE
   { title: "Speech malayalam", category: "Senior", type: "stage", count: 3, is_group: false },
-  { title: "Speech english", category: "Senior", type: "stage", count: 2, is_group: false },
+  { title: "Speech english", category: "Senior", type: "stage", count: 3, is_group: false },
   { title: "Speech Arabic", category: "Senior", type: "stage", count: 2, is_group: false },
   { title: "Poem recitation english", category: "Senior", type: "stage", count: 2, is_group: false },
   { title: "Qira'th", category: "Senior", type: "stage", count: 3, is_group: false },

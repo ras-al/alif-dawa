@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Target, Activity, Trash2, Plus, UserPlus, Trophy, ChevronRight, UserCircle, Info, Award, Image as ImageIcon, Save, Download, Lock, Unlock, Star } from 'lucide-react';
+import { Users, Target, Activity, Trash2, Plus, UserPlus, Trophy, ChevronRight, UserCircle, Info, Award, Image as ImageIcon, Save, Download, Lock, Unlock, Star, Edit2, Eye, X } from 'lucide-react';
 import api from '../../api/client';
 
 export default function AdminFestDashboard() {
@@ -35,8 +35,12 @@ export default function AdminFestDashboard() {
   type TabType = typeof tabs[number]['id'];
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [programSearch, setProgramSearch] = useState('');
   // Forms state
-  const [newProgram, setNewProgram] = useState({ title: '', category: 'Premier', type: 'stage', max_judges: 3 });
+  const [newProgram, setNewProgram] = useState({ title: '', category: 'Premier', type: 'stage', max_judges: 3, team_limit: 3, is_group: false });
+  const [editingProgram, setEditingProgram] = useState<any | null>(null);
+  const [viewingParticipants, setViewingParticipants] = useState<{program: any, participants: any[], is_group: boolean} | null>(null);
+
   const [newTeam, setNewTeam] = useState({ name: '', chest_number_start: 100 });
   const [assignJudge, setAssignJudge] = useState<{ program_id: string, judge_names: string[] }>({ program_id: '', judge_names: [] });
   const [newJudgeInput, setNewJudgeInput] = useState('');
@@ -108,12 +112,36 @@ export default function AdminFestDashboard() {
   const handleAddProgram = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/fest/admin/programs', newProgram);
-      setNewProgram({ title: '', category: 'Premier', type: 'stage', max_judges: 3 });
+      await api.post('/fest/admin/programs', { ...newProgram, team_limit: newProgram.team_limit === 0 ? null : newProgram.team_limit });
+      setNewProgram({ title: '', category: 'Premier', type: 'stage', max_judges: 3, team_limit: 3, is_group: false });
       loadData();
     } catch (err) {
       console.error(err);
       alert('Failed to add program');
+    }
+  };
+
+  const handleEditProgramSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProgram) return;
+    try {
+      await api.put(`/fest/admin/programs/${editingProgram.id}`, { 
+        ...editingProgram, 
+        team_limit: editingProgram.team_limit === 0 || editingProgram.team_limit === '' ? null : Number(editingProgram.team_limit) 
+      });
+      setEditingProgram(null);
+      loadData();
+    } catch (err) {
+      alert('Failed to update program');
+    }
+  };
+
+  const handleViewParticipants = async (program: any) => {
+    try {
+      const res = await api.get(`/fest/stage-admin/programs/${program.id}/participants`);
+      setViewingParticipants({ program, participants: res.data.participants, is_group: res.data.is_group });
+    } catch (err) {
+      alert('Failed to load participants');
     }
   };
 
@@ -447,21 +475,44 @@ export default function AdminFestDashboard() {
                       <option value="off-stage">Off-Stage</option>
                     </select>
                   </div>
-                  <button type="submit" className="bg-[#14532D] text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#14532D]/90 transition-all shadow-sm">
-                    <Plus size={18} /> Add Program
-                  </button>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Team Limit (0=No limit)</label>
+                    <input type="number" value={newProgram.team_limit} onChange={e => setNewProgram({...newProgram, team_limit: Number(e.target.value)})} className="border border-slate-300 rounded-lg px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none transition-all" />
+                  </div>
+                  <div className="flex items-center gap-2 mb-2 ml-2">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
+                      <input type="checkbox" checked={newProgram.is_group} onChange={e => setNewProgram({...newProgram, is_group: e.target.checked})} className="rounded border-slate-300 text-[#14532D] focus:ring-[#14532D] w-4 h-4" />
+                      Is Group Event
+                    </label>
+                  </div>
+                  <div className="col-span-1 sm:col-span-2 md:col-span-4 flex justify-end">
+                    <button type="submit" className="bg-[#14532D] text-white px-6 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#14532D]/90 transition-all shadow-sm">
+                      <Plus size={18} /> Add Program
+                    </button>
+                  </div>
                 </form>
               </div>
 
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                {/* Category Filter */}
-                <div className="flex flex-wrap gap-2 p-4 border-b border-slate-100">
-                  {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
-                    <button key={cat} onClick={() => setCategoryFilter(cat)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                      {cat}
-                    </button>
-                  ))}
+                {/* Filters */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border-b border-slate-100">
+                  <div className="flex flex-wrap gap-2">
+                    {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+                      <button key={cat} onClick={() => setCategoryFilter(cat)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="w-full sm:w-64">
+                    <input 
+                      type="text" 
+                      placeholder="Search programs..." 
+                      value={programSearch}
+                      onChange={e => setProgramSearch(e.target.value)}
+                      className="w-full border border-slate-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none"
+                    />
+                  </div>
                 </div>
                 <div className="overflow-x-auto w-full max-w-full">
                   <table className="w-full min-w-[550px] text-sm text-left">
@@ -470,23 +521,42 @@ export default function AdminFestDashboard() {
                         <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Title</th>
                         <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Category</th>
                         <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Type</th>
+                        <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider text-center">Limit</th>
+                        <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider text-center">Reg. Count</th>
                         <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
+                      {(programs as any[])
+                        .filter(p => categoryFilter === 'All' || p.category === categoryFilter)
+                        .filter(p => !programSearch || p.title.toLowerCase().includes(programSearch.toLowerCase()))
+                        .map((p: any) => (
                         <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-6 py-4 font-medium text-slate-900">{p.title}</td>
+                          <td className="px-6 py-4">
+                            <p className="font-medium text-slate-900">{p.title}</p>
+                            {p.is_group && <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-bold uppercase tracking-wide">Group Event</span>}
+                          </td>
                           <td className="px-6 py-4 text-slate-600"><span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium">{p.category}</span></td>
                           <td className="px-6 py-4 text-slate-600 capitalize">{p.type}</td>
-                          <td className="px-6 py-4 text-right">
-                            <button onClick={() => handleDeleteProgram(p.id)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-2 rounded-lg transition-colors inline-flex items-center justify-center">
+                          <td className="px-6 py-4 text-center font-semibold text-slate-700">{p.team_limit || '∞'}</td>
+                          <td className="px-6 py-4 text-center font-bold text-emerald-700">{p.registered_count || 0}</td>
+                          <td className="px-6 py-4 text-right space-x-1 whitespace-nowrap">
+                            <button onClick={() => handleViewParticipants(p)} className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 p-2 rounded-lg transition-colors inline-flex items-center justify-center" title="View Participants">
+                              <Eye size={18} />
+                            </button>
+                            <button onClick={() => setEditingProgram({...p, team_limit: p.team_limit || 0})} className="text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 p-2 rounded-lg transition-colors inline-flex items-center justify-center" title="Edit Program">
+                              <Edit2 size={18} />
+                            </button>
+                            <button onClick={() => handleDeleteProgram(p.id)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-2 rounded-lg transition-colors inline-flex items-center justify-center" title="Delete Program">
                               <Trash2 size={18} />
                             </button>
                           </td>
                         </tr>
                       ))}
-                      {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">No programs{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''} found.</td></tr>}
+                      {(programs as any[])
+                        .filter(p => categoryFilter === 'All' || p.category === categoryFilter)
+                        .filter(p => !programSearch || p.title.toLowerCase().includes(programSearch.toLowerCase()))
+                        .length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500">No programs{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''} found.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -1064,6 +1134,97 @@ export default function AdminFestDashboard() {
           )}
         </div>
       </div>
+
+      {/* Editing Modal */}
+      {editingProgram && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button onClick={() => setEditingProgram(null)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors"><X size={20} /></button>
+            <h3 className="text-lg font-bold text-slate-900 mb-6">Edit Program</h3>
+            <form onSubmit={handleEditProgramSave} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Program Title</label>
+                <input required value={editingProgram.title} onChange={e => setEditingProgram({...editingProgram, title: e.target.value})} className="border border-slate-300 rounded-lg px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none transition-all" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Category</label>
+                  <select value={editingProgram.category} onChange={e => setEditingProgram({...editingProgram, category: e.target.value})} className="border border-slate-300 rounded-lg px-4 py-2.5 text-sm w-full bg-white focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none transition-all">
+                    <option value="Premier">Premier</option>
+                    <option value="Junior">Junior</option>
+                    <option value="Senior">Senior</option>
+                    <option value="General">General</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Event Type</label>
+                  <select value={editingProgram.type} onChange={e => setEditingProgram({...editingProgram, type: e.target.value})} className="border border-slate-300 rounded-lg px-4 py-2.5 text-sm w-full bg-white focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none transition-all">
+                    <option value="stage">Stage</option>
+                    <option value="off-stage">Off-Stage</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Team Limit (0=No limit)</label>
+                <input type="number" value={editingProgram.team_limit} onChange={e => setEditingProgram({...editingProgram, team_limit: e.target.value})} className="border border-slate-300 rounded-lg px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-[#14532D]/20 focus:border-[#14532D] outline-none transition-all" />
+              </div>
+              <div>
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer pt-2">
+                  <input type="checkbox" checked={editingProgram.is_group} onChange={e => setEditingProgram({...editingProgram, is_group: e.target.checked})} className="rounded border-slate-300 text-[#14532D] focus:ring-[#14532D] w-4 h-4" />
+                  Is Group Event
+                </label>
+              </div>
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setEditingProgram(null)} className="flex-1 bg-slate-100 text-slate-700 px-4 py-2.5 rounded-lg font-semibold text-sm hover:bg-slate-200 transition-all">Cancel</button>
+                <button type="submit" className="flex-1 bg-[#14532D] text-white px-4 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#14532D]/90 transition-all shadow-sm">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Participants Modal */}
+      {viewingParticipants && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl relative max-h-[85vh] flex flex-col">
+            <button onClick={() => setViewingParticipants(null)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors"><X size={20} /></button>
+            <div className="mb-6">
+              <h3 className="text-xl font-bold text-slate-900">{viewingParticipants.program.title}</h3>
+              <div className="flex gap-2 mt-2">
+                <span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium text-slate-600">{viewingParticipants.program.category}</span>
+                <span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium text-slate-600 capitalize">{viewingParticipants.program.type}</span>
+                {viewingParticipants.is_group && <span className="px-2.5 py-1 bg-indigo-100 rounded-md text-xs font-medium text-indigo-700">Group Event</span>}
+              </div>
+            </div>
+            
+            <div className="overflow-y-auto flex-1 bg-slate-50 border border-slate-200 rounded-xl">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-100 border-b border-slate-200 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3 text-slate-700 font-semibold text-xs uppercase">Chest No.</th>
+                    <th className="px-4 py-3 text-slate-700 font-semibold text-xs uppercase">Student Name</th>
+                    <th className="px-4 py-3 text-slate-700 font-semibold text-xs uppercase">Team</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {viewingParticipants.participants.map((p, i) => (
+                    <tr key={i} className="hover:bg-white transition-colors bg-slate-50/50">
+                      <td className="px-4 py-3 font-mono font-bold text-slate-900">{p.chest_number}</td>
+                      <td className="px-4 py-3 text-slate-800">{p.student_name}</td>
+                      <td className="px-4 py-3 text-slate-600">{p.team_name}</td>
+                    </tr>
+                  ))}
+                  {viewingParticipants.participants.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-8 text-center text-slate-500">No participants registered for this program.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

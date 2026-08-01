@@ -31,7 +31,7 @@ const programs = [
 
   // Junior Stage
   { category: 'Junior', type: 'stage', title: 'Speech malayalam', team_limit: 4, is_group: false },
-  { category: 'Junior', type: 'stage', title: 'Speech english', team_limit: 2, is_group: false },
+  { category: 'Junior', type: 'stage', title: 'Speech english', team_limit: 3, is_group: false },
   { category: 'Junior', type: 'stage', title: 'Speech Arabic', team_limit: 2, is_group: false },
   { category: 'Junior', type: 'stage', title: 'Madh song', team_limit: 3, is_group: false },
   { category: 'Junior', type: 'stage', title: "Qira'th", team_limit: 3, is_group: false },
@@ -63,7 +63,7 @@ const programs = [
 
   // Senior Stage
   { category: 'Senior', type: 'stage', title: 'Speech malayalam', team_limit: 3, is_group: false },
-  { category: 'Senior', type: 'stage', title: 'Speech english', team_limit: 2, is_group: false },
+  { category: 'Senior', type: 'stage', title: 'Speech english', team_limit: 3, is_group: false },
   { category: 'Senior', type: 'stage', title: 'Speech Arabic', team_limit: 2, is_group: false },
   { category: 'Senior', type: 'stage', title: 'Poem recitation english', team_limit: 2, is_group: false },
   { category: 'Senior', type: 'stage', title: "Qira'th", team_limit: 3, is_group: false },
