@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/client';
-import { Play, CheckCircle, ChevronDown, ChevronUp, Key, Info, Bell, BellOff, RefreshCw, Shuffle, RotateCcw, Users, UserCheck, ArrowRight, Zap } from 'lucide-react';
+import { Play, CheckCircle, Key, Info, Bell, BellOff, RefreshCw, Shuffle, RotateCcw, Users, UserCheck, ArrowRight, Zap } from 'lucide-react';
 
 type WorkflowStep = 'programs' | 'attendance' | 'codes' | null;
 

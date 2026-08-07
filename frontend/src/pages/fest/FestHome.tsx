@@ -201,7 +201,7 @@ const FestHome = () => {
                     { name: 'Senior', nameml: 'സീനിയര്‍' },
                     { name: 'Junior', nameml: 'ജൂനിയര്‍' },
                     { name: 'General', nameml: 'ജനറല്‍' },
-                  ].map((cat, i) => (
+                  ].map((cat) => (
                     <div key={cat.name} className={`bg-white border-[3px] border-[#111111] p-6 text-center shadow-[6px_6px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#111111] transition-all cursor-default`}>
                       <BookOpen className={`mx-auto mb-4 text-[#111111]`} size={32} strokeWidth={2.5} />
                       <p className={`font-black text-xl uppercase tracking-wider`}>{cat.name}</p>
