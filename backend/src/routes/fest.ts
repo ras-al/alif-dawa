@@ -935,12 +935,13 @@ router.post('/announcer/publish', authorize('announcer', 'admin'), async (req: A
 // Stage Admin Routes
 router.get('/stage-admin/programs/:id/participants', authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
   try {
-    // Also return program info (is_group) for the frontend
-    const progRes = await pool.query(`SELECT is_group FROM fest_programs WHERE id = $1`, [req.params.id]);
+    // Also return program info (is_group, status) for the frontend
+    const progRes = await pool.query(`SELECT is_group, status FROM fest_programs WHERE id = $1`, [req.params.id]);
     const isGroup = progRes.rows.length > 0 ? progRes.rows[0].is_group : false;
+    const status = progRes.rows.length > 0 ? progRes.rows[0].status : 'scheduled';
 
     const { rows } = await pool.query(`
-      SELECT r.id as registration_id, r.code_letter, p.chest_number, s.name as student_name, t.name as team_name, t.id as team_id
+      SELECT r.id as registration_id, r.code_letter, r.is_present, p.chest_number, s.name as student_name, t.name as team_name, t.id as team_id
       FROM fest_registrations r
       JOIN fest_participants p ON r.fest_participant_id = p.id
       JOIN students s ON p.student_id = s.id
@@ -948,7 +949,44 @@ router.get('/stage-admin/programs/:id/participants', authorize('stage_admin', 'a
       WHERE r.fest_program_id = $1
       ORDER BY t.name ASC, p.chest_number ASC
     `, [req.params.id]);
-    res.json({ participants: rows, is_group: isGroup });
+    res.json({ participants: rows, is_group: isGroup, status });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Mark attendance for participants (bulk update)
+router.post('/stage-admin/programs/:id/mark-attendance', authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
+  const { present_ids } = req.body; // array of registration_ids that are present
+  const programId = req.params.id;
+  try {
+    await pool.query('BEGIN');
+    // Reset all to absent first
+    await pool.query(`UPDATE fest_registrations SET is_present = false WHERE fest_program_id = $1`, [programId]);
+    // Mark provided ones as present
+    if (present_ids && present_ids.length > 0) {
+      await pool.query(`UPDATE fest_registrations SET is_present = true WHERE fest_program_id = $1 AND id = ANY($2::int[])`, [programId, present_ids]);
+    }
+    await pool.query('COMMIT');
+    res.json({ success: true, present_count: present_ids?.length || 0 });
+  } catch (err: any) {
+    await pool.query('ROLLBACK');
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Finish stage - transition program to judging phase
+router.post('/stage-admin/programs/:id/finish-stage', authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
+  const programId = req.params.id;
+  try {
+    const progRes = await pool.query(`SELECT status FROM fest_programs WHERE id = $1`, [programId]);
+    if (progRes.rows.length === 0) return res.status(404).json({ error: 'Program not found' });
+    if (progRes.rows[0].status !== 'live') {
+      return res.status(400).json({ error: 'Program must be live to finish stage' });
+    }
+    // Transition to judging phase
+    await pool.query(`UPDATE fest_programs SET status = 'judging' WHERE id = $1`, [programId]);
+    res.json({ success: true, status: 'judging' });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Server error' });
   }

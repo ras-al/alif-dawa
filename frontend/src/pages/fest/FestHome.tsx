@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2, BookOpen, Shield } from 'lucide-react';
+import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2, BookOpen, Shield, ChevronRight } from 'lucide-react';
 import axios from 'axios';
 import { usePosterGenerator } from '../../components/ResultPosterGenerator';
 
@@ -59,202 +59,199 @@ const FestHome = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0f1c] text-slate-100 font-sans selection:bg-amber-500/30 selection:text-amber-200 relative overflow-hidden">
+    <div className="min-h-screen bg-[#F2F0E9] text-[#111111] font-sans selection:bg-[#7A0C1E] selection:text-[#F2F0E9]">
       
-      {/* Background Animated Orbs */}
-      <div className="fixed top-[-20%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-indigo-900/20 mix-blend-screen filter blur-[100px] animate-blob z-0 pointer-events-none"></div>
-      <div className="fixed bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-amber-900/10 mix-blend-screen filter blur-[100px] animate-blob animation-delay-2000 z-0 pointer-events-none"></div>
-      <div className="fixed top-[20%] left-[40%] w-[30vw] h-[30vw] rounded-full bg-emerald-900/10 mix-blend-screen filter blur-[80px] animate-blob animation-delay-4000 z-0 pointer-events-none"></div>
+      {/* Sticky Header / Nav */}
+      <header className="sticky top-0 z-50 bg-[#F2F0E9] border-b-[3px] border-[#111111] px-4 py-3 sm:px-6">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
+          <div className="w-full md:w-auto flex justify-between items-center">
+            <div className="font-black text-xl sm:text-2xl tracking-tighter uppercase">
+              ALIF DAWA <span className="text-[#7A0C1E]">FEST</span>
+            </div>
+            <a href="/fest/login" className="md:hidden px-4 py-2 bg-[#7A0C1E] text-[#F2F0E9] border-[3px] border-[#111111] text-xs font-bold uppercase tracking-widest shadow-[2px_2px_0_#111111] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center gap-1">
+              Login <ChevronRight size={14} strokeWidth={3} />
+            </a>
+          </div>
+          
+          <div className="w-full md:w-auto flex-1 flex justify-start md:justify-center overflow-x-auto no-scrollbar gap-2 pb-1">
+            {[
+              { key: 'about', label: 'About' },
+              { key: 'results', label: 'Results' },
+              { key: 'news', label: 'News' },
+              { key: 'social', label: 'Social' },
+              { key: 'gallery', label: 'Gallery' },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key as any)}
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-bold uppercase tracking-widest border-[2px] sm:border-[3px] border-[#111111] transition-all whitespace-nowrap
+                  ${activeTab === tab.key 
+                    ? 'bg-[#111111] text-[#F2F0E9] shadow-[2px_2px_0_#7A0C1E] sm:shadow-[4px_4px_0_#7A0C1E] translate-y-[-2px]' 
+                    : 'bg-white text-[#111111] shadow-[2px_2px_0_#111111] sm:shadow-[4px_4px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px] active:shadow-none'
+                  }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-      {/* Top Navigation */}
-      <div className="absolute top-0 right-0 p-4 sm:p-6 z-50 flex items-center gap-2">
-        <a href="/fest/login" className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-full text-xs sm:text-sm font-semibold transition-all">
-          Team Login
-        </a>
-      </div>
+          <a href="/fest/login" className="hidden md:flex px-5 py-2.5 bg-[#7A0C1E] text-[#F2F0E9] border-[3px] border-[#111111] text-sm font-bold uppercase tracking-widest shadow-[4px_4px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all items-center gap-2">
+            Login <ChevronRight size={16} strokeWidth={3} />
+          </a>
+        </div>
+      </header>
 
       {/* Hero Section */}
-      <div className="relative overflow-hidden min-h-[55vh] flex items-center justify-center">
-        <div className="absolute inset-0 z-0">
-          <img src="/poster.jpeg" alt="Fest Poster" className="w-full h-full object-cover opacity-40 blur-[4px] scale-105 transform hover:scale-110 transition-transform duration-10000" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1c] via-[#0a0f1c]/80 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0a0f1c]/80 via-transparent to-[#0a0f1c]/80" />
-        </div>
+      <section className="border-b-[3px] border-[#111111] bg-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#7A0C1E] border-l-[3px] border-b-[3px] border-[#111111] rounded-bl-full hidden md:block"></div>
+        <div className="absolute bottom-0 left-0 w-32 h-32 border-t-[3px] border-r-[3px] border-[#111111] bg-[#111111] hidden md:block" style={{ backgroundImage: 'radial-gradient(#F2F0E9 2px, transparent 2px)', backgroundSize: '10px 10px' }}></div>
         
-        <div className="relative z-10 text-center px-4 max-w-4xl mx-auto mt-20 sm:mt-24">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 backdrop-blur-md border border-amber-500/30 text-xs font-bold tracking-widest uppercase text-amber-400 mb-6 sm:mb-8 animate-fade-in-up">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.8)]"></span>
-            Alif Dawa College Annual Fest
+        <div className="max-w-6xl mx-auto px-4 py-16 sm:py-32 relative z-10 text-center">
+          <div className="inline-block px-3 py-1 sm:px-4 sm:py-1.5 border-[3px] border-[#111111] bg-[#F2F0E9] text-[#111111] text-xs sm:text-base font-bold uppercase tracking-widest mb-6 sm:mb-8 shadow-[2px_2px_0_#111111] sm:shadow-[4px_4px_0_#111111]">
+            Annual Institutional Fest
           </div>
-          <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tighter mb-3 text-white drop-shadow-2xl">
-            The Ultimate <br/>
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 animate-gradient-x inline-block mt-2">Stage of Talent</span>
+          
+          <h1 className="text-4xl sm:text-6xl md:text-8xl font-black uppercase tracking-tighter leading-none mb-6">
+            The Ultimate<br />
+            <span className="text-[#7A0C1E] underline decoration-[4px] md:decoration-[6px] underline-offset-[8px] md:underline-offset-[12px]">Stage of Talent</span>
           </h1>
-          <p className="text-base sm:text-lg text-amber-200/60 mb-2 font-medium" dir="rtl" lang="ml">
+          
+          <p className="text-lg sm:text-2xl font-bold mb-4" dir="rtl" lang="ml">
             കലയുടെയും സംസ്കാരത്തിന്റെയും ഉത്സവം
           </p>
-          <p className="text-base sm:text-lg md:text-xl text-slate-300 mb-8 sm:mb-10 max-w-2xl mx-auto font-light leading-relaxed">
-            Experience the pinnacle of arts, culture, and intellect. Watch live updates, discover results, and celebrate the champions.
+          
+          <p className="text-sm sm:text-lg max-w-2xl mx-auto font-medium mb-10 sm:mb-12 px-2">
+            Experience the pinnacle of arts, culture, and intellect. Watch live updates, discover results, and celebrate the champions in a raw, unfiltered environment.
           </p>
 
           {/* Leaderboard Mini Display */}
           {leaderboard.length > 0 && (
-            <div className="flex justify-center gap-4 flex-wrap mt-4 mb-4">
+            <div className="flex justify-center gap-3 sm:gap-4 flex-wrap max-w-4xl mx-auto">
               {leaderboard.slice(0, 3).map((team, i) => (
-                <div key={team.id} className={`px-5 py-3 rounded-2xl backdrop-blur-xl border flex items-center gap-3 ${
-                  i === 0 ? 'bg-amber-500/10 border-amber-500/30' :
-                  i === 1 ? 'bg-slate-300/10 border-slate-300/30' :
-                  'bg-orange-500/10 border-orange-500/30'
-                }`}>
-                  <span className={`text-xl font-black ${
-                    i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : 'text-orange-400'
-                  }`}>#{i+1}</span>
-                  <span className="text-sm font-bold text-white">{team.team_name}</span>
-                  <span className="text-sm font-medium text-slate-400">{team.total_points} pts</span>
+                <div key={team.id} className={`flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3 sm:py-4 border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] sm:shadow-[6px_6px_0_#111111] bg-white w-full sm:w-auto
+                  ${i === 0 ? 'sm:scale-110 z-10 bg-amber-300' : ''}`}>
+                  <span className="text-2xl sm:text-3xl font-black">#{i+1}</span>
+                  <div className="text-left flex-1">
+                    <div className="font-bold text-base sm:text-lg uppercase tracking-tight">{team.team_name}</div>
+                    <div className="font-bold text-xs sm:text-sm text-[#7A0C1E]">{team.total_points} PTS</div>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Tabs */}
-      <div className="sticky top-0 z-40 bg-[#0a0f1c]/80 backdrop-blur-xl border-b border-white/5 shadow-2xl">
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="flex justify-center gap-2 sm:gap-8 overflow-x-auto no-scrollbar">
-            {[
-              { key: 'about', label: 'About', icon: Info },
-              { key: 'results', label: 'Results', icon: Award },
-              { key: 'news', label: 'News', icon: Newspaper },
-              { key: 'social', label: 'Social Media', icon: Globe },
-              { key: 'gallery', label: 'Photo Gallery', icon: Camera },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key as any)}
-                className={`px-4 sm:px-6 py-5 text-xs sm:text-sm font-bold uppercase tracking-widest transition-all duration-300 relative whitespace-nowrap flex items-center gap-2 ${
-                  activeTab === tab.key
-                    ? 'text-amber-400'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <tab.icon size={16} />
-                {tab.label}
-                {activeTab === tab.key && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-amber-500/0 via-amber-400 to-amber-500/0 shadow-[0_-2px_10px_rgba(251,191,36,0.5)]"></div>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Content Area */}
-      <div className="max-w-5xl mx-auto px-4 py-12">
+      {/* Main Content Area */}
+      <main className="max-w-6xl mx-auto px-4 py-10 sm:py-16">
         {loading ? (
           <div className="flex justify-center items-center py-20">
-            <div className="w-12 h-12 border-4 border-emerald-400/20 border-t-emerald-400 rounded-full animate-spin"></div>
+            <div className="w-16 h-16 border-[6px] border-[#111111] border-t-[#7A0C1E] rounded-full animate-spin"></div>
           </div>
         ) : (
-          <div className="animate-fade-in">
+          <div>
             {/* ABOUT TAB */}
             {activeTab === 'about' && (
-              <div className="space-y-10 relative z-10 animate-fade-in-up">
-                <div className="flex items-center gap-4 mb-8 justify-center">
-                  <div className="relative">
-                    <Info className="text-amber-400 relative z-10" size={32} />
-                    <div className="absolute inset-0 bg-amber-400 rounded-full blur-md animate-pulse opacity-50"></div>
-                  </div>
-                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white">അലിഫ് ദഅവ ഫെസ്റ്റ്</h2>
+              <div className="space-y-10 sm:space-y-12">
+                <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 mb-6 sm:mb-8 text-center sm:text-left">
+                  <Info className="text-[#111111] w-8 h-8 sm:w-10 sm:h-10" strokeWidth={3} />
+                  <h2 className="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tighter">അലിഫ് ദഅവ ഫെസ്റ്റ്</h2>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-6 sm:gap-8">
-                  <div className="bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl p-6 sm:p-8 backdrop-blur-xl">
-                    <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 flex items-center gap-3">
-                      <Star className="text-amber-400 flex-shrink-0" /> Our Vision
+                  <div className="bg-white border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] sm:shadow-[8px_8px_0_#111111] p-5 sm:p-8">
+                    <h3 className="text-xl sm:text-2xl font-black uppercase mb-4 flex items-center gap-3 border-b-[3px] border-[#111111] pb-4">
+                      <Star className="text-[#7A0C1E]" strokeWidth={3} /> Our Vision
                     </h3>
-                    <p className="text-slate-300 leading-relaxed text-base sm:text-lg font-light mb-4">
+                    <p className="font-medium text-base sm:text-lg leading-relaxed mb-4">
                       Alif Dawa College Annual Fest is a celebration of talent, creativity, and unity. We aim to provide a platform for students to showcase their skills in arts, culture, and intellect.
                     </p>
-                    <p className="text-slate-400 leading-relaxed text-sm" dir="rtl" lang="ml">
+                    <p className="font-bold text-xs sm:text-sm bg-[#F2F0E9] p-3 sm:p-4 border-[3px] border-[#111111]" dir="rtl" lang="ml">
                       അലിഫ് ദഅവ കോളേജ് വാര്‍ഷിക ഫെസ്റ്റ് കലയുടെയും സര്‍ഗാത്മകതയുടെയും ഏകത്വത്തിന്റെയും ആഘോഷമാണ്. വിദ്യാര്‍ത്ഥികള്‍ക്ക് തങ്ങളുടെ കഴിവുകള്‍ പ്രദര്‍ശിപ്പിക്കാനുള്ള ഒരു വേദിയാണ് ഇത്.
                     </p>
                   </div>
-                  <div className="bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl p-6 sm:p-8 backdrop-blur-xl">
-                    <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 flex items-center gap-3">
-                      <Users className="text-blue-400 flex-shrink-0" /> The Teams
+                  
+                  <div className="bg-white border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] sm:shadow-[8px_8px_0_#111111] p-5 sm:p-8">
+                    <h3 className="text-xl sm:text-2xl font-black uppercase mb-4 flex items-center gap-3 border-b-[3px] border-[#111111] pb-4">
+                      <Users className="text-[#7A0C1E]" strokeWidth={3} /> The Teams
                     </h3>
-                    <p className="text-slate-300 leading-relaxed text-base sm:text-lg font-light mb-4">
+                    <p className="font-medium text-base sm:text-lg mb-6">
                       The fest is fiercely contested by three magnificent teams:
                     </p>
-                    <ul className="space-y-3">
-                      <li className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-amber-500"></span><strong className="text-white">Vanguard</strong><span className="text-slate-400">- Leading the way</span></li>
-                      <li className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-slate-300"></span><strong className="text-white">Renegades</strong><span className="text-slate-400">- Defying limits</span></li>
-                      <li className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-orange-500"></span><strong className="text-white">Divergent</strong><span className="text-slate-400">- Thinking differently</span></li>
+                    <ul className="space-y-3 sm:space-y-4">
+                      {[
+                        { name: 'Vanguard', desc: 'Leading the way' },
+                        { name: 'Renegades', desc: 'Defying limits' },
+                        { name: 'Divergent', desc: 'Thinking differently' },
+                      ].map(team => (
+                        <li key={team.name} className="flex items-center gap-4 p-3 border-[3px] border-[#111111] bg-[#F2F0E9]">
+                          <div className="w-4 h-4 bg-[#7A0C1E] border-2 border-[#111111]"></div>
+                          <strong className="text-xl uppercase">{team.name}</strong>
+                          <span className="font-medium text-sm ml-auto hidden sm:inline-block">{team.desc}</span>
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 </div>
 
                 {/* Categories */}
-                <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-6">
                   {[
-                    { name: 'Premier', nameml: 'പ്രീമിയര്‍', color: 'from-amber-500/20 to-amber-600/10 border-amber-500/30', text: 'text-amber-400' },
-                    { name: 'Senior', nameml: 'സീനിയര്‍', color: 'from-blue-500/20 to-blue-600/10 border-blue-500/30', text: 'text-blue-400' },
-                    { name: 'Junior', nameml: 'ജൂനിയര്‍', color: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/30', text: 'text-emerald-400' },
-                    { name: 'General', nameml: 'ജനറല്‍', color: 'from-purple-500/20 to-purple-600/10 border-purple-500/30', text: 'text-purple-400' },
-                  ].map(cat => (
-                    <div key={cat.name} className={`bg-gradient-to-br ${cat.color} border rounded-2xl p-5 backdrop-blur-xl text-center`}>
-                      <BookOpen className={`mx-auto mb-2 ${cat.text}`} size={24} />
-                      <p className={`font-bold text-lg ${cat.text}`}>{cat.name}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{cat.nameml}</p>
+                    { name: 'Premier', nameml: 'പ്രീമിയര്‍' },
+                    { name: 'Senior', nameml: 'സീനിയര്‍' },
+                    { name: 'Junior', nameml: 'ജൂനിയര്‍' },
+                    { name: 'General', nameml: 'ജനറല്‍' },
+                  ].map((cat, i) => (
+                    <div key={cat.name} className={`bg-white border-[3px] border-[#111111] p-6 text-center shadow-[6px_6px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#111111] transition-all cursor-default`}>
+                      <BookOpen className={`mx-auto mb-4 text-[#111111]`} size={32} strokeWidth={2.5} />
+                      <p className={`font-black text-xl uppercase tracking-wider`}>{cat.name}</p>
+                      <p className="text-sm font-bold mt-2 text-[#7A0C1E]">{cat.nameml}</p>
                     </div>
                   ))}
                 </div>
 
                 {/* Rules */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl p-6 sm:p-8 backdrop-blur-xl">
-                  <h3 className="text-xl sm:text-2xl font-bold text-white mb-5 flex items-center gap-3">
-                    <Shield className="text-emerald-400 flex-shrink-0" /> Rules & Guidelines
+                <div className="bg-[#111111] text-[#F2F0E9] border-[3px] border-[#111111] shadow-[4px_4px_0_#7A0C1E] sm:shadow-[8px_8px_0_#7A0C1E] p-5 sm:p-8">
+                  <h3 className="text-xl sm:text-2xl font-black uppercase mb-6 flex items-center gap-3 border-b-[3px] border-[#F2F0E9] pb-4">
+                    <Shield className="text-[#F2F0E9]" strokeWidth={3} /> Rules & Guidelines
                   </h3>
-                  <div className="grid sm:grid-cols-2 gap-6">
-                    <ul className="space-y-3 text-sm text-slate-300">
-                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>Every participant must carry their chest number at all times</li>
-                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>Report to the stage when your program is called</li>
-                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>Time limits must be strictly followed</li>
-                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>Code letters are assigned for fair judging</li>
+                  <div className="grid sm:grid-cols-2 gap-6 sm:gap-8 text-sm sm:text-base">
+                    <ul className="space-y-3 sm:space-y-4 font-medium">
+                      <li className="flex items-start gap-3"><span className="w-3 h-3 bg-[#7A0C1E] mt-1.5 flex-shrink-0"></span>Every participant must carry their chest number at all times</li>
+                      <li className="flex items-start gap-3"><span className="w-3 h-3 bg-[#7A0C1E] mt-1.5 flex-shrink-0"></span>Report to the stage when your program is called</li>
+                      <li className="flex items-start gap-3"><span className="w-3 h-3 bg-[#7A0C1E] mt-1.5 flex-shrink-0"></span>Time limits must be strictly followed</li>
+                      <li className="flex items-start gap-3"><span className="w-3 h-3 bg-[#7A0C1E] mt-1.5 flex-shrink-0"></span>Code letters are assigned for fair judging</li>
                     </ul>
-                    <ul className="space-y-3 text-sm text-slate-400" dir="rtl" lang="ml">
-                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0"></span>മത്സരികള്‍ക്ക് എല്ലാ സമയത്തും ചെസ്റ്റ് നമ്പര്‍ ഉണ്ടായിരിക്കണം</li>
-                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0"></span>പ്രോഗ്രാം വിളിക്കുമ്പോള്‍ സ്റ്റേജില്‍ ഹാജരാകുക</li>
-                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0"></span>സമയപരിധി കാര്‍യമായി പാലിക്കണം</li>
-                      <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0"></span>ന്യായമായ മൂല്യനിര്‍ണയത്തിന് കോഡ് ലെറ്ററുകള്‍ നല്‍കുന്നു</li>
+                    <ul className="space-y-3 sm:space-y-4 font-bold" dir="rtl" lang="ml">
+                      <li className="flex items-start gap-3"><span className="w-3 h-3 bg-[#7A0C1E] mt-1.5 flex-shrink-0"></span>മത്സരികള്‍ക്ക് എല്ലാ സമയത്തും ചെസ്റ്റ് നമ്പര്‍ ഉണ്ടായിരിക്കണം</li>
+                      <li className="flex items-start gap-3"><span className="w-3 h-3 bg-[#7A0C1E] mt-1.5 flex-shrink-0"></span>പ്രോഗ്രാം വിളിക്കുമ്പോള്‍ സ്റ്റേജില്‍ ഹാജരാകുക</li>
+                      <li className="flex items-start gap-3"><span className="w-3 h-3 bg-[#7A0C1E] mt-1.5 flex-shrink-0"></span>സമയപരിധി കാര്‍യമായി പാലിക്കണം</li>
+                      <li className="flex items-start gap-3"><span className="w-3 h-3 bg-[#7A0C1E] mt-1.5 flex-shrink-0"></span>ന്യായമായ മൂല്യനിര്‍ണയത്തിന് കോഡ് ലെറ്ററുകള്‍ നല്‍കുന്നു</li>
                     </ul>
                   </div>
                 </div>
 
                 {/* Stats */}
-                <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-white/10 rounded-2xl sm:rounded-3xl p-8 sm:p-10 text-center backdrop-blur-xl">
-                  <h3 className="text-xl sm:text-2xl font-bold text-white mb-4">ആഘോഷത്തിന്റെ ഭാഗമാകൂ</h3>
-                  <p className="text-slate-300 text-base sm:text-lg mb-8 max-w-2xl mx-auto">
+                <div className="bg-[#7A0C1E] text-white border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] sm:shadow-[8px_8px_0_#111111] p-6 sm:p-10 text-center relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full mix-blend-overlay"></div>
+                  <div className="absolute bottom-[-20px] left-[-20px] w-48 h-48 border-[10px] border-white opacity-10 mix-blend-overlay rotate-45"></div>
+                  
+                  <h3 className="text-2xl sm:text-4xl font-black uppercase mb-4 relative z-10">ആഘോഷത്തിന്റെ ഭാഗമാകൂ</h3>
+                  <p className="text-sm sm:text-lg font-bold mb-8 sm:mb-10 max-w-2xl mx-auto relative z-10">
                     Be a part of the most awaited event of the year. Witness breathtaking performances and create lasting memories.
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 max-w-3xl mx-auto">
-                    <div className="text-center">
-                      <div className="text-3xl sm:text-4xl font-black text-amber-400 mb-2">3</div>
-                      <div className="text-xs sm:text-sm text-slate-400 uppercase tracking-widest">Teams</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-3xl sm:text-4xl font-black text-emerald-400 mb-2">50+</div>
-                      <div className="text-xs sm:text-sm text-slate-400 uppercase tracking-widest">Events</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-3xl sm:text-4xl font-black text-blue-400 mb-2">300+</div>
-                      <div className="text-xs sm:text-sm text-slate-400 uppercase tracking-widest">Participants</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-3xl sm:text-4xl font-black text-purple-400 mb-2">4</div>
-                      <div className="text-xs sm:text-sm text-slate-400 uppercase tracking-widest">Categories</div>
-                    </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 max-w-4xl mx-auto relative z-10">
+                    {[
+                      { num: '3', label: 'Teams' },
+                      { num: '50+', label: 'Events' },
+                      { num: '300+', label: 'Participants' },
+                      { num: '4', label: 'Categories' },
+                    ].map(stat => (
+                      <div key={stat.label} className="bg-[#111111] p-4 sm:p-6 border-[3px] border-white shadow-[3px_3px_0_#F2F0E9] sm:shadow-[4px_4px_0_#F2F0E9] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
+                        <div className="text-3xl sm:text-5xl font-black text-white mb-1 sm:mb-2">{stat.num}</div>
+                        <div className="text-xs sm:text-sm font-bold uppercase tracking-widest text-[#F2F0E9]">{stat.label}</div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -262,25 +259,22 @@ const FestHome = () => {
 
             {/* RESULTS TAB */}
             {activeTab === 'results' && (
-              <div className="space-y-6 relative z-10">
-                <div className="flex items-center gap-4 mb-6 justify-center">
-                  <div className="relative">
-                    <Award className="text-amber-400 relative z-10" size={32} />
-                    <div className="absolute inset-0 bg-amber-400 rounded-full blur-md animate-pulse opacity-50"></div>
-                  </div>
-                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white">Published Results</h2>
+              <div className="space-y-6 sm:space-y-8">
+                <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 mb-6 sm:mb-8 text-center sm:text-left">
+                  <Award className="text-[#111111] w-8 h-8 sm:w-10 sm:h-10" strokeWidth={3} />
+                  <h2 className="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tighter">Published Results</h2>
                 </div>
 
                 {/* Category Filter */}
-                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                <div className="flex flex-wrap gap-2 sm:gap-4 mb-8 sm:mb-10">
                   {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
                     <button
                       key={cat}
                       onClick={() => setCategoryFilter(cat)}
-                      className={`px-4 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all ${
+                      className={`px-3 py-1.5 sm:px-5 sm:py-2.5 text-sm sm:text-base font-black uppercase tracking-wider border-[2px] sm:border-[3px] border-[#111111] transition-all ${
                         categoryFilter === cat
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                          : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10'
+                          ? 'bg-[#111111] text-[#F2F0E9] shadow-[2px_2px_0_#7A0C1E] sm:shadow-[4px_4px_0_#7A0C1E] translate-y-[2px]'
+                          : 'bg-white text-[#111111] shadow-[2px_2px_0_#111111] sm:shadow-[4px_4px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none'
                       }`}
                     >
                       {cat}
@@ -290,47 +284,47 @@ const FestHome = () => {
 
                 <div className="grid gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-3">
                   {results.filter(r => categoryFilter === 'All' || r.category === categoryFilter).map((res) => (
-                    <div key={res.id} className="group relative rounded-2xl sm:rounded-3xl transition-all duration-500 hover:-translate-y-2 overflow-hidden bg-white/5 border border-white/10 backdrop-blur-xl">
-                      <div className={`absolute -top-24 -right-24 w-48 h-48 rounded-full mix-blend-screen filter blur-[50px] opacity-50 transition-opacity group-hover:opacity-100 ${
-                        res.position === 1 ? 'bg-amber-500' :
-                        res.position === 2 ? 'bg-slate-300' :
-                        'bg-orange-600'
-                      }`}></div>
+                    <div key={res.id} className="bg-white border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] sm:shadow-[8px_8px_0_#111111] flex flex-col group relative">
+                      
+                      {res.position === 1 && (
+                        <div className="absolute top-0 right-0 bg-[#7A0C1E] text-white font-black px-3 py-1 sm:px-4 sm:py-1 text-xs sm:text-base border-l-[3px] border-b-[3px] border-[#111111]">
+                          WINNER
+                        </div>
+                      )}
 
-                      <div className="p-8 h-full flex flex-col relative z-10">
-                        <div className="flex justify-between items-start mb-8">
-                          <span className={`inline-flex items-center justify-center w-14 h-14 rounded-full font-black text-2xl border-2 shadow-lg ${
-                            res.position === 1 ? 'border-amber-400 text-amber-400 bg-amber-400/10 shadow-amber-400/20' :
-                            res.position === 2 ? 'border-slate-300 text-slate-300 bg-slate-300/10 shadow-slate-300/20' :
-                            'border-orange-500 text-orange-500 bg-orange-500/10 shadow-orange-500/20'
-                          }`}>
+                      <div className="p-4 sm:p-6 border-b-[3px] border-[#111111] bg-[#F2F0E9]">
+                        <div className="flex justify-between items-start">
+                          <span className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-[#111111] text-white font-black text-2xl sm:text-3xl border-[3px] border-[#111111] shadow-[2px_2px_0_#7A0C1E] sm:shadow-[4px_4px_0_#7A0C1E]">
                             #{res.position}
                           </span>
-                          <span className="text-xs font-bold px-3 py-1.5 bg-white/10 text-white rounded-lg uppercase tracking-widest border border-white/5">
+                          <span className="font-black px-2 py-1 sm:px-3 sm:py-1.5 bg-white border-[2px] sm:border-[3px] border-[#111111] uppercase tracking-widest text-xs sm:text-sm shadow-[2px_2px_0_#111111]">
                             {res.team_name}
                           </span>
                         </div>
-                        
-                        <div className="flex-grow">
-                          <h3 className="text-2xl font-bold text-white mb-2 leading-tight">{res.student_name}</h3>
-                          <p className="text-indigo-300 font-semibold mb-4 text-lg">{res.program_title}</p>
-                          <div className="inline-block px-3 py-1 bg-white/5 rounded text-xs font-medium text-slate-400 border border-white/5 uppercase tracking-wider">{res.category}</div>
+                      </div>
+                      
+                      <div className="p-4 sm:p-6 flex-grow bg-white">
+                        <h3 className="text-xl sm:text-2xl font-black uppercase mb-1 sm:mb-2 leading-tight">{res.student_name}</h3>
+                        <p className="text-base sm:text-lg font-bold text-[#7A0C1E] mb-3 sm:mb-4">{res.program_title}</p>
+                        <div className="inline-block px-2 py-1 sm:px-3 sm:py-1 bg-[#111111] text-white font-bold text-[10px] sm:text-xs uppercase tracking-wider">
+                          {res.category}
                         </div>
-                        
-                        <div className="mt-8 pt-6 border-t border-white/10 flex gap-3">
-                          <button onClick={() => handleShare(res)} className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 rounded-xl transition-colors text-sm font-bold">
-                            <Share2 size={18} /> Share
-                          </button>
-                          <button onClick={() => handleDownloadPoster(res)} disabled={loadingPosterId === res.id} className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl transition-colors text-sm font-bold disabled:opacity-50">
-                            {loadingPosterId === res.id ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />} Poster
-                          </button>
-                        </div>
+                      </div>
+                      
+                      <div className="flex border-t-[3px] border-[#111111]">
+                        <button onClick={() => handleShare(res)} className="flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 px-2 sm:py-4 sm:px-4 bg-white hover:bg-[#F2F0E9] border-r-[3px] border-[#111111] font-black uppercase text-xs sm:text-sm transition-colors">
+                          <Share2 size={16} strokeWidth={3} className="sm:w-[18px] sm:h-[18px]" /> Share
+                        </button>
+                        <button onClick={() => handleDownloadPoster(res)} disabled={loadingPosterId === res.id} className="flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 px-2 sm:py-4 sm:px-4 bg-[#111111] text-white hover:bg-[#7A0C1E] font-black uppercase text-xs sm:text-sm transition-colors disabled:opacity-50">
+                          {loadingPosterId === res.id ? <Loader2 size={16} className="animate-spin sm:w-[18px] sm:h-[18px]" /> : <Download size={16} strokeWidth={3} className="sm:w-[18px] sm:h-[18px]" />} Poster
+                        </button>
                       </div>
                     </div>
                   ))}
+                  
                   {results.filter(r => categoryFilter === 'All' || r.category === categoryFilter).length === 0 && (
-                    <div className="col-span-full text-center py-16 sm:py-20 bg-white/5 border border-white/5 rounded-2xl sm:rounded-3xl backdrop-blur-sm">
-                      <p className="text-slate-400 text-base sm:text-lg">No results found{categoryFilter !== 'All' ? ` for ${categoryFilter} category` : ''}.</p>
+                    <div className="col-span-full text-center py-24 bg-white border-[3px] border-[#111111] shadow-[8px_8px_0_#111111]">
+                      <p className="font-black text-xl uppercase">No results found{categoryFilter !== 'All' ? ` for ${categoryFilter} category` : ''}.</p>
                     </div>
                   )}
                 </div>
@@ -339,28 +333,26 @@ const FestHome = () => {
 
             {/* NEWS TAB */}
             {activeTab === 'news' && (
-              <div className="space-y-8 relative z-10">
-                <div className="flex items-center gap-4 mb-10 justify-center">
-                  <div className="relative">
-                    <Newspaper className="text-emerald-400 relative z-10" size={32} />
-                    <div className="absolute inset-0 bg-emerald-400 rounded-full blur-md animate-pulse opacity-50"></div>
-                  </div>
-                  <h2 className="text-3xl md:text-4xl font-extrabold text-white">Latest News</h2>
+              <div className="space-y-8">
+                <div className="flex items-center gap-4 mb-8">
+                  <Newspaper className="text-[#111111]" size={40} strokeWidth={3} />
+                  <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter">Latest News</h2>
                 </div>
+                
                 <div className="space-y-6">
                   {[
                     { title: 'Grand Opening Ceremony', desc: 'The fest kicked off with a spectacular opening ceremony featuring performances from all three teams.', time: 'Today' },
                     { title: 'Premier Category Begins', desc: 'The Premier category programs are now underway with participants showcasing exceptional talent.', time: 'Today' },
                     { title: 'Teams Announced', desc: 'Three teams - Vanguard, Renegades, and Divergent - have been officially revealed with their leaders.', time: 'Yesterday' },
                   ].map((news, i) => (
-                    <div key={i} className="group bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl hover:bg-white/10 transition-all duration-300 hover:-translate-y-1">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-white mb-3">{news.title}</h3>
-                          <p className="text-slate-400 leading-relaxed">{news.desc}</p>
-                        </div>
-                        <span className="flex-shrink-0 px-3 py-1 bg-white/5 rounded-full text-xs font-medium text-slate-400 border border-white/5">{news.time}</span>
+                    <div key={i} className="bg-white border-[3px] border-[#111111] shadow-[6px_6px_0_#111111] p-6 sm:p-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                      <div>
+                        <h3 className="text-2xl font-black uppercase mb-3">{news.title}</h3>
+                        <p className="font-medium text-lg max-w-3xl">{news.desc}</p>
                       </div>
+                      <span className="flex-shrink-0 px-4 py-1.5 bg-[#111111] text-white font-bold uppercase text-xs tracking-widest border-[3px] border-[#111111] self-start">
+                        {news.time}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -369,30 +361,26 @@ const FestHome = () => {
 
             {/* SOCIAL MEDIA TAB */}
             {activeTab === 'social' && (
-              <div className="space-y-8 relative z-10">
-                <div className="flex items-center gap-4 mb-10 justify-center">
-                  <div className="relative">
-                    <Globe className="text-blue-400 relative z-10" size={32} />
-                    <div className="absolute inset-0 bg-blue-400 rounded-full blur-md animate-pulse opacity-50"></div>
-                  </div>
-                  <h2 className="text-3xl md:text-4xl font-extrabold text-white">Social Media</h2>
+              <div className="space-y-8">
+                <div className="flex items-center gap-4 mb-8">
+                  <Globe className="text-[#111111]" size={40} strokeWidth={3} />
+                  <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter">Social Media</h2>
                 </div>
+                
                 <div className="grid gap-6 md:grid-cols-2">
                   {[
-                    { platform: 'Instagram', handle: '@alifdawa_fest', color: 'from-pink-500 to-purple-500', icon: ImageIcon },
-                    { platform: 'YouTube', handle: 'Alif Dawa Official', color: 'from-red-500 to-red-600', icon: PlayCircle },
-                    { platform: 'WhatsApp', handle: 'Fest Updates Group', color: 'from-green-500 to-green-600', icon: MessageCircle },
-                    { platform: 'Facebook', handle: 'Alif Dawa College', color: 'from-blue-600 to-blue-700', icon: ThumbsUp },
+                    { platform: 'Instagram', handle: '@alifdawa_fest', icon: ImageIcon, bg: 'bg-[#F2F0E9]' },
+                    { platform: 'YouTube', handle: 'Alif Dawa Official', icon: PlayCircle, bg: 'bg-[#F2F0E9]' },
+                    { platform: 'WhatsApp', handle: 'Fest Updates Group', icon: MessageCircle, bg: 'bg-[#F2F0E9]' },
+                    { platform: 'Facebook', handle: 'Alif Dawa College', icon: ThumbsUp, bg: 'bg-[#F2F0E9]' },
                   ].map((social, i) => (
-                    <div key={i} className="group bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl hover:bg-white/10 transition-all duration-300 hover:-translate-y-1 cursor-pointer">
-                      <div className="flex items-center gap-5">
-                        <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${social.color} flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform`}>
-                          <social.icon size={24} />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-white">{social.platform}</h3>
-                          <p className="text-sm text-slate-400">{social.handle}</p>
-                        </div>
+                    <div key={i} className={`border-[3px] border-[#111111] bg-white shadow-[6px_6px_0_#111111] p-6 sm:p-8 hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#111111] transition-all cursor-pointer flex items-center gap-6`}>
+                      <div className={`w-16 h-16 ${social.bg} border-[3px] border-[#111111] flex items-center justify-center flex-shrink-0`}>
+                        <social.icon size={32} strokeWidth={2.5} className="text-[#111111]" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl sm:text-2xl font-black uppercase">{social.platform}</h3>
+                        <p className="font-bold text-[#7A0C1E]">{social.handle}</p>
                       </div>
                     </div>
                   ))}
@@ -402,26 +390,38 @@ const FestHome = () => {
 
             {/* PHOTO GALLERY TAB */}
             {activeTab === 'gallery' && (
-              <div className="space-y-8 relative z-10">
-                <div className="flex items-center gap-4 mb-10 justify-center">
-                  <div className="relative">
-                    <Camera className="text-purple-400 relative z-10" size={32} />
-                    <div className="absolute inset-0 bg-purple-400 rounded-full blur-md animate-pulse opacity-50"></div>
-                  </div>
-                  <h2 className="text-3xl md:text-4xl font-extrabold text-white">Photo Gallery</h2>
+              <div className="space-y-8">
+                <div className="flex items-center gap-4 mb-8">
+                  <Camera className="text-[#111111]" size={40} strokeWidth={3} />
+                  <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter">Photo Gallery</h2>
                 </div>
-                <div className="text-center py-20 bg-white/5 border border-white/5 rounded-3xl backdrop-blur-sm">
-                  <Camera className="mx-auto text-slate-500 mb-4" size={48} />
-                  <p className="text-slate-400 text-lg mb-2">Photos will be uploaded during the fest</p>
-                  <p className="text-slate-500 text-sm">Stay tuned for amazing moments captured live!</p>
+                
+                <div className="text-center py-24 bg-white border-[3px] border-[#111111] shadow-[8px_8px_0_#111111]">
+                  <Camera className="mx-auto text-[#111111] mb-6" size={64} strokeWidth={2} />
+                  <p className="font-black text-2xl uppercase mb-2">Photos will be uploaded during the fest</p>
+                  <p className="font-bold text-[#7A0C1E]">Stay tuned for amazing moments captured live!</p>
                 </div>
               </div>
             )}
           </div>
         )}
-      </div>
+      </main>
+      
+      {/* Footer Block */}
+      <footer className="bg-[#111111] border-t-[3px] border-[#111111] text-[#F2F0E9] py-12 mt-12">
+        <div className="max-w-6xl mx-auto px-4 text-center">
+          <h2 className="text-3xl font-black uppercase mb-4 tracking-tighter">ALIF DAWA FEST</h2>
+          <p className="font-bold uppercase text-sm text-gray-400 mb-8 tracking-widest">© 2026 Alif Dawa College. All rights reserved.</p>
+          <div className="flex justify-center gap-4">
+            <a href="#" className="w-12 h-12 bg-[#F2F0E9] border-[3px] border-[#F2F0E9] text-[#111111] flex items-center justify-center hover:bg-[#7A0C1E] hover:text-[#F2F0E9] hover:border-[#7A0C1E] transition-colors"><ImageIcon size={24} strokeWidth={2.5} /></a>
+            <a href="#" className="w-12 h-12 bg-[#F2F0E9] border-[3px] border-[#F2F0E9] text-[#111111] flex items-center justify-center hover:bg-[#7A0C1E] hover:text-[#F2F0E9] hover:border-[#7A0C1E] transition-colors"><PlayCircle size={24} strokeWidth={2.5} /></a>
+            <a href="#" className="w-12 h-12 bg-[#F2F0E9] border-[3px] border-[#F2F0E9] text-[#111111] flex items-center justify-center hover:bg-[#7A0C1E] hover:text-[#F2F0E9] hover:border-[#7A0C1E] transition-colors"><MessageCircle size={24} strokeWidth={2.5} /></a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
 
 export default FestHome;
+

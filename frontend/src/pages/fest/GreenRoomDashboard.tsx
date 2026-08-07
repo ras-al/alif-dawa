@@ -69,11 +69,36 @@ export default function GreenRoomDashboard() {
       avg: a.totalMark / a.count
     })).sort((a, b) => b.avg - a.avg);
 
-    const results = sortedRegistrations.map((s, idx) => ({
-      registration_id: s.registration_id,
-      position: idx + 1,
-      points: idx === 0 ? 10 : idx === 1 ? 7 : idx === 2 ? 5 : 0
-    }));
+    // Calculate Grade Points
+    const getGradePoints = (avg: number, category: string) => {
+      const isGeneral = category === 'General';
+      if (avg >= 90) return isGeneral ? 15 : 5; // A+
+      if (avg >= 70) return isGeneral ? 13 : 3; // A
+      if (avg >= 60) return isGeneral ? 11 : 2; // B
+      if (avg >= 50) return isGeneral ? 9 : 1;  // C
+      return 0;
+    };
+
+    // Calculate Position Points
+    const getPositionPoints = (position: number) => {
+      if (position === 1) return 3;
+      if (position === 2) return 2;
+      if (position === 3) return 1;
+      return 0;
+    };
+
+    const results = sortedRegistrations.map((s, idx) => {
+      const position = idx + 1;
+      const gradePoints = getGradePoints(s.avg, selectedProgram.category);
+      const positionPoints = getPositionPoints(position);
+      const totalPoints = gradePoints + positionPoints;
+
+      return {
+        registration_id: s.registration_id,
+        position: position,
+        points: totalPoints
+      };
+    });
 
     try {
       await api.post('/fest/green-room/verify', { program_id: selectedProgram.id, results });

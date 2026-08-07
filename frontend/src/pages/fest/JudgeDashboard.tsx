@@ -167,6 +167,9 @@ export default function JudgeDashboard() {
                 {p.status === 'live' && (
                   <span className="inline-block mt-2 px-2.5 py-0.5 bg-rose-100 text-rose-700 rounded-full text-xs font-bold animate-pulse">● Live Now</span>
                 )}
+                {p.status === 'judging' && (
+                  <span className="inline-block mt-2 px-2.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold animate-pulse">● Judging Phase</span>
+                )}
               </div>
             ))}
             {(programs as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && <p className="text-slate-500 col-span-2">No programs{categoryFilter !== 'All' ? ` in ${categoryFilter} category` : ''} assigned to you.</p>}
@@ -209,7 +212,7 @@ export default function JudgeDashboard() {
               </div>
             </div>
             <div className="p-4 space-y-4">
-              {selectedProgram.status === 'scheduled' && (
+              {(selectedProgram.status === 'scheduled') && (
                 <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-sm font-medium text-center">
                   This program has not started yet. You can only submit marks once the stage admin clicks Live.
                 </div>
