@@ -414,7 +414,10 @@ export default function StageAdminDashboard() {
                       </>
                     )}
                     {p.status === 'judging' && (
-                      <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-3 py-1.5 rounded-lg">Awaiting Judges</span>
+                      <>
+                        <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-3 py-1.5 rounded-lg">Awaiting Judges</span>
+                        <button onClick={() => handleSetStatus(p.id, 'scheduled')} className="text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1.5 text-sm ml-2"><RefreshCw size={16} /> Reset</button>
+                      </>
                     )}
                     {p.status === 'completed' && (
                       <button onClick={() => handleSetStatus(p.id, 'scheduled')} className="text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1.5 text-sm"><RefreshCw size={16} /> Reset</button>
