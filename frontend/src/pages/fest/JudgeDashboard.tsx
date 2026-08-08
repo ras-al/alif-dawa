@@ -26,7 +26,7 @@ export default function JudgeDashboard() {
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [eventType]);
 
   useEffect(() => {
     loadPrograms();
