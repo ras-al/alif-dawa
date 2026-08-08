@@ -11,11 +11,12 @@ export default function JudgeDashboard() {
   const [programJudges, setProgramJudges] = useState<{ id: number, judge_name: string }[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [eventType, setEventType] = useState<'MAIN' | 'HIFZ'>('MAIN');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadPrograms = useCallback(async () => {
     try {
-      const res = await api.get('/fest/judge/programs');
+      const res = await api.get(`/fest/judge/programs?event_type=${eventType}`);
       setPrograms(res.data);
       setSelectedProgram((prev: any) => {
         if (!prev) return prev;
@@ -31,7 +32,7 @@ export default function JudgeDashboard() {
     loadPrograms();
     const interval = setInterval(loadPrograms, 10000);
     return () => clearInterval(interval);
-  }, [loadPrograms]);
+  }, [loadPrograms, eventType]);
 
   const fetchParticipants = useCallback(async (programId: number) => {
     try {
@@ -131,7 +132,13 @@ export default function JudgeDashboard() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Judge Evaluation Portal</h1>
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">Judge Evaluation Portal</h1>
+        <div className="flex gap-2">
+          <button onClick={() => setEventType('MAIN')} className={`px-4 py-2 text-xs font-bold rounded-lg border transition-colors ${eventType === 'MAIN' ? 'bg-[#14532D] text-white border-[#14532D]' : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-300'}`}>MAIN FEST</button>
+          <button onClick={() => setEventType('HIFZ')} className={`px-4 py-2 text-xs font-bold rounded-lg border transition-colors ${eventType === 'HIFZ' ? 'bg-[#14532D] text-white border-[#14532D]' : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-300'}`}>HIFZ FEST</button>
+        </div>
+      </div>
 
       <div className="mb-8 bg-blue-50 border border-blue-100 rounded-2xl p-6 text-blue-900 shadow-sm">
         <h3 className="font-bold text-lg mb-2 flex items-center gap-2">

@@ -19,6 +19,7 @@ export default function AdminFestDashboard() {
   const [lockToggling, setLockToggling] = useState(false);
   const [downloadingCards, setDownloadingCards] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [eventType, setEventType] = useState<'MAIN' | 'HIFZ'>('MAIN');
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Activity },
@@ -62,14 +63,14 @@ export default function AdminFestDashboard() {
   const loadData = async () => {
     try {
       const [progRes, teamRes, userRes, partRes, regRes, studRes, resultRes, individualPointsRes, posterRes, assignRes, settingsRes] = await Promise.allSettled([
-        api.get('/fest/public/programs'),
-        api.get('/fest/admin/teams'),
+        api.get(`/fest/public/programs?event_type=${eventType}`),
+        api.get(`/fest/admin/teams?event_type=${eventType}`),
         api.get('/fest/admin/users'),
-        api.get('/fest/admin/participants'),
-        api.get('/fest/admin/registrations'),
+        api.get(`/fest/admin/participants?event_type=${eventType}`),
+        api.get(`/fest/admin/registrations?event_type=${eventType}`),
         api.get('/students'),
-        api.get('/fest/admin/results'),
-        api.get('/fest/admin/individual-points'),
+        api.get(`/fest/admin/results?event_type=${eventType}`),
+        api.get(`/fest/admin/individual-points?event_type=${eventType}`),
         api.get('/fest/public/poster-template'),
         api.get('/fest/admin/judge-assignments'),
         api.get('/fest/admin/fest-settings')
@@ -107,13 +108,13 @@ export default function AdminFestDashboard() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [eventType]);
 
   const handleAddProgram = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/fest/admin/programs', { ...newProgram, team_limit: newProgram.team_limit === 0 ? null : newProgram.team_limit });
-      setNewProgram({ title: '', category: 'Premier', type: 'stage', max_judges: 3, team_limit: 3, is_group: false });
+      await api.post('/fest/admin/programs', { ...newProgram, team_limit: newProgram.team_limit === 0 ? null : newProgram.team_limit, event_type: eventType });
+      setNewProgram({ title: '', category: eventType === 'MAIN' ? 'Premier' : 'Stage', type: 'stage', max_judges: 3, team_limit: 3, is_group: false });
       loadData();
     } catch (err) {
       console.error(err);
@@ -158,7 +159,7 @@ export default function AdminFestDashboard() {
   const handleAddTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/fest/admin/teams', newTeam);
+      await api.post('/fest/admin/teams', { ...newTeam, event_type: eventType });
       setNewTeam({ name: '', chest_number_start: 100 });
       loadData();
     } catch (err) {
@@ -350,12 +351,38 @@ export default function AdminFestDashboard() {
     <div className="max-w-7xl mx-auto pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Fest Management</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            Fest Management <span className="ml-2 text-sm px-2.5 py-1 bg-[#14532D]/10 text-[#14532D] rounded-full uppercase tracking-wider">{eventType} EVENT</span>
+          </h1>
           <p className="text-slate-500 text-sm mt-1">Configure and manage all aspects of the Alif Dawa Fest.</p>
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={() => setEventType('MAIN')}
+              className={`px-4 py-1.5 text-xs font-bold uppercase rounded-lg border transition-all ${
+                eventType === 'MAIN' 
+                  ? 'bg-[#14532D] text-white border-[#14532D]' 
+                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              Main Fest
+            </button>
+            <button
+              onClick={() => setEventType('HIFZ')}
+              className={`px-4 py-1.5 text-xs font-bold uppercase rounded-lg border transition-all ${
+                eventType === 'HIFZ' 
+                  ? 'bg-[#14532D] text-white border-[#14532D]' 
+                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              Hifz Fest
+            </button>
+          </div>
         </div>
-        <a href="/fest" target="_blank" rel="noreferrer" className="inline-flex items-center justify-center px-5 py-2.5 bg-[#14532D] text-white rounded-lg text-sm font-semibold hover:bg-[#14532D]/90 transition-all shadow-sm shadow-[#14532D]/20 gap-2">
-          View Public Page <ChevronRight size={16} />
-        </a>
+        <div className="flex items-center gap-3">
+          <a href="/fest" target="_blank" rel="noreferrer" className="inline-flex items-center justify-center px-5 py-2.5 bg-[#14532D] text-white rounded-lg text-sm font-semibold hover:bg-[#14532D]/90 transition-all shadow-sm shadow-[#14532D]/20 gap-2">
+            View Public Page <ChevronRight size={16} />
+          </a>
+        </div>
       </div>
 
       <div className="mb-8 bg-blue-50 border border-blue-100 rounded-2xl p-6 text-blue-900 shadow-sm">

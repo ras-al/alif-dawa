@@ -54,13 +54,16 @@ function sendToTeamLeaders(teamId: number, data: object) {
 
 router.get('/public/programs', async (req, res) => {
   try {
+    const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
       `SELECT p.id, p.title, p.category, p.type, p.status, p.is_called, p.is_group, p.team_limit,
               COUNT(r.id)::int as registered_count
        FROM fest_programs p
        LEFT JOIN fest_registrations r ON r.fest_program_id = p.id
+       WHERE p.event_type = $1
        GROUP BY p.id
-       ORDER BY p.id ASC`
+       ORDER BY p.id ASC`,
+      [eventType]
     );
     res.json(rows);
   } catch (err: any) {
@@ -71,6 +74,7 @@ router.get('/public/programs', async (req, res) => {
 
 router.get('/public/results', async (req, res) => {
   try {
+    const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
       `SELECT r.id, r.position, r.points, p.title as program_title, p.category, 
               t.name as team_name, s.name as student_name
@@ -80,8 +84,9 @@ router.get('/public/results', async (req, res) => {
        JOIN fest_participants part ON reg.fest_participant_id = part.id
        JOIN students s ON part.student_id = s.id
        JOIN fest_teams t ON part.fest_team_id = t.id
-       WHERE r.published_at IS NOT NULL
-       ORDER BY p.id ASC, r.position ASC`
+       WHERE r.published_at IS NOT NULL AND p.event_type = $1
+       ORDER BY p.id ASC, r.position ASC`,
+      [eventType]
     );
     res.json(rows);
   } catch (err: any) {
@@ -92,14 +97,17 @@ router.get('/public/results', async (req, res) => {
 
 router.get('/public/leaderboard', async (req, res) => {
   try {
+    const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
       `SELECT t.id, t.name as team_name, COALESCE(SUM(r.points), 0)::int as total_points
        FROM fest_teams t
        LEFT JOIN fest_participants part ON t.id = part.fest_team_id
        LEFT JOIN fest_registrations reg ON part.id = reg.fest_participant_id
        LEFT JOIN fest_results r ON reg.id = r.fest_registration_id AND r.published_at IS NOT NULL
+       WHERE t.event_type = $1
        GROUP BY t.id, t.name
-       ORDER BY total_points DESC`
+       ORDER BY total_points DESC`,
+      [eventType]
     );
     res.json(rows);
   } catch (err: any) {
@@ -235,7 +243,8 @@ router.use(authenticate);
 // Admin Routes
 router.get('/admin/teams', authorize('admin'), async (req, res) => {
   try {
-    const { rows } = await pool.query(`SELECT * FROM fest_teams ORDER BY id ASC`);
+    const eventType = req.query.event_type || 'MAIN';
+    const { rows } = await pool.query(`SELECT * FROM fest_teams WHERE event_type = $1 ORDER BY id ASC`, [eventType]);
     res.json(rows);
   } catch (err) {
     console.error(err);
@@ -244,11 +253,11 @@ router.get('/admin/teams', authorize('admin'), async (req, res) => {
 });
 
 router.post('/admin/teams', authorize('admin'), async (req: AuthRequest, res) => {
-  const { name, chest_number_start } = req.body;
+  const { name, chest_number_start, event_type } = req.body;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO fest_teams (name, chest_number_start) VALUES ($1, $2) RETURNING *`,
-      [name, chest_number_start]
+      `INSERT INTO fest_teams (name, chest_number_start, event_type) VALUES ($1, $2, $3) RETURNING *`,
+      [name, chest_number_start, event_type || 'MAIN']
     );
     res.json(rows[0]);
   } catch (err: any) {
@@ -267,11 +276,11 @@ router.delete('/admin/teams/:id', authorize('admin'), async (req: AuthRequest, r
 });
 
 router.post('/admin/programs', authorize('admin'), async (req: AuthRequest, res) => {
-  const { title, category, type, max_judges } = req.body;
+  const { title, category, type, max_judges, event_type } = req.body;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO fest_programs (title, category, type, max_judges) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [title, category, type, max_judges]
+      `INSERT INTO fest_programs (title, category, type, max_judges, event_type) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [title, category, type, max_judges, event_type || 'MAIN']
     );
     res.json(rows[0]);
   } catch (err: any) {
@@ -487,6 +496,7 @@ router.get('/admin/participants/download-cards', authorize('admin'), async (req:
 
 router.get('/admin/individual-points', authorize('admin'), async (req: AuthRequest, res) => {
   try {
+    const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
       `SELECT 
           part.id, 
@@ -503,8 +513,9 @@ router.get('/admin/individual-points', authorize('admin'), async (req: AuthReque
        LEFT JOIN fest_registrations reg ON part.id = reg.fest_participant_id
        LEFT JOIN fest_results r ON reg.id = r.fest_registration_id AND r.published_at IS NOT NULL
        LEFT JOIN fest_programs p ON reg.fest_program_id = p.id
+       WHERE t.event_type = $1
        GROUP BY part.id, u.username, part.chest_number, t.name
-       ORDER BY total_points DESC`
+       ORDER BY total_points DESC`, [eventType]
     );
     res.json(rows);
   } catch (err: any) {
@@ -588,13 +599,15 @@ router.delete('/admin/leader-assignment/:userId', authorize('admin'), async (req
 // Participants
 router.get('/admin/participants', authorize('admin'), async (req: AuthRequest, res) => {
   try {
+    const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(`
       SELECT p.id, p.chest_number, p.category, s.name as student_name, s.admission_number, t.name as team_name, t.id as team_id
       FROM fest_participants p
       JOIN students s ON p.student_id = s.id
       JOIN fest_teams t ON p.fest_team_id = t.id
+      WHERE t.event_type = $1
       ORDER BY p.chest_number ASC
-    `);
+    `, [eventType]);
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Server error' });
@@ -606,16 +619,17 @@ router.post('/admin/participants', authorize('admin'), async (req: AuthRequest, 
   try {
     await pool.query('BEGIN');
     
-    // Check if student is already a participant
-    const exist = await pool.query(`SELECT id FROM fest_participants WHERE student_id = $1`, [student_id]);
-    if (exist.rows.length > 0) {
-      throw new Error('Student is already registered as a participant.');
-    }
-    
-    // Get next chest number
-    const teamRes = await pool.query(`SELECT chest_number_start FROM fest_teams WHERE id = $1`, [fest_team_id]);
+    // Get next chest number and event_type
+    const teamRes = await pool.query(`SELECT chest_number_start, event_type FROM fest_teams WHERE id = $1`, [fest_team_id]);
     if (teamRes.rows.length === 0) throw new Error('Team not found');
     const start = teamRes.rows[0].chest_number_start;
+    const eventType = teamRes.rows[0].event_type || 'MAIN';
+    
+    // Check if student is already a participant in this event
+    const exist = await pool.query(`SELECT id FROM fest_participants WHERE student_id = $1 AND event_type = $2`, [student_id, eventType]);
+    if (exist.rows.length > 0) {
+      throw new Error('Student is already registered as a participant in this event.');
+    }
     
     const maxRes = await pool.query(`SELECT MAX(chest_number) as max_cn FROM fest_participants WHERE fest_team_id = $1`, [fest_team_id]);
     let nextCn = start;
@@ -624,8 +638,8 @@ router.post('/admin/participants', authorize('admin'), async (req: AuthRequest, 
     }
     
     const { rows } = await pool.query(
-      `INSERT INTO fest_participants (student_id, fest_team_id, chest_number) VALUES ($1, $2, $3) RETURNING *`,
-      [student_id, fest_team_id, nextCn]
+      `INSERT INTO fest_participants (student_id, fest_team_id, chest_number, event_type) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [student_id, fest_team_id, nextCn, eventType]
     );
     await pool.query('COMMIT');
     res.json(rows[0]);
@@ -647,14 +661,16 @@ router.delete('/admin/participants/:id', authorize('admin'), async (req: AuthReq
 // Registrations
 router.get('/admin/registrations', authorize('admin'), async (req: AuthRequest, res) => {
   try {
+    const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(`
       SELECT r.id, r.code_letter, p.chest_number, s.name as student_name, pr.title as program_title, pr.id as program_id
       FROM fest_registrations r
       JOIN fest_participants p ON r.fest_participant_id = p.id
       JOIN students s ON p.student_id = s.id
       JOIN fest_programs pr ON r.fest_program_id = pr.id
+      WHERE pr.event_type = $1
       ORDER BY r.id DESC
-    `);
+    `, [eventType]);
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Server error' });
@@ -686,14 +702,16 @@ router.delete('/admin/registrations/:id', authorize('admin'), async (req: AuthRe
 // Judge Routes
 router.get('/judge/programs', authorize('judge', 'admin'), async (req: AuthRequest, res) => {
   try {
-    let query = `SELECT id, title, category, type, status, is_called, is_group, judging_locked FROM fest_programs ORDER BY title`;
-    let params: any[] = [];
+    const eventType = req.query.event_type || 'MAIN';
+    let query = `SELECT id, title, category, type, status, is_called, is_group, judging_locked FROM fest_programs WHERE event_type = $1 ORDER BY title`;
+    let params: any[] = [eventType];
     
     if (req.user?.role === 'judge') {
         // Return only programs that have at least one judge assigned to them
         query = `SELECT DISTINCT p.id, p.title, p.category, p.type, p.status, p.is_called, p.is_group, p.judging_locked 
                  FROM fest_programs p
                  JOIN fest_program_judges pj ON p.id = pj.fest_program_id
+                 WHERE p.event_type = $1
                  ORDER BY p.title`;
     }
     
@@ -802,16 +820,17 @@ router.post('/judge/programs/:programId/lock', authorize('judge'), async (req: A
 router.get('/green-room/pending', authorize('green_room', 'admin'), async (req, res) => {
   // Programs with marks but no results yet
   try {
+    const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
       `SELECT p.id, p.title, p.category 
        FROM fest_programs p
-       WHERE EXISTS (
+       WHERE p.event_type = $1 AND EXISTS (
          SELECT 1 FROM fest_registrations reg
          JOIN fest_marks m ON reg.id = m.fest_registration_id
          WHERE reg.fest_program_id = p.id
        ) AND NOT EXISTS (
          SELECT 1 FROM fest_results r WHERE r.fest_program_id = p.id
-       )`
+       )`, [eventType]
     );
     res.json(rows);
   } catch (err) {
@@ -822,12 +841,14 @@ router.get('/green-room/pending', authorize('green_room', 'admin'), async (req, 
 
 router.get('/green-room/verified', authorize('green_room', 'admin'), async (req, res) => {
   try {
+    const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
       `SELECT DISTINCT p.id, p.title, p.category, 
         (SELECT MAX(published_at) FROM fest_results r WHERE r.fest_program_id = p.id) as published_at
        FROM fest_programs p
        JOIN fest_results r ON p.id = r.fest_program_id
-       ORDER BY p.title`
+       WHERE p.event_type = $1
+       ORDER BY p.title`, [eventType]
     );
     res.json(rows);
   } catch (err) {
@@ -903,11 +924,12 @@ router.post('/green-room/programs/:programId/undo-verify', authorize('green_room
 // Announcer Routes
 router.get('/announcer/pending', authorize('announcer', 'admin'), async (req, res) => {
   try {
+    const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
       `SELECT DISTINCT p.id, p.title, p.category 
        FROM fest_programs p
        JOIN fest_results r ON p.id = r.fest_program_id
-       WHERE r.published_at IS NULL`
+       WHERE r.published_at IS NULL AND p.event_type = $1`, [eventType]
     );
     res.json(rows);
   } catch (err) {
@@ -1220,7 +1242,7 @@ router.get('/leader/dashboard', authenticate, authorize('leader'), async (req: A
   try {
     // Get leader's team
     const teamRes = await pool.query(
-      `SELECT ftl.fest_team_id, ftl.is_first_leader, ft.name as team_name
+      `SELECT ftl.fest_team_id, ftl.is_first_leader, ft.name as team_name, ft.event_type
        FROM fest_team_leaders ftl
        JOIN fest_teams ft ON ftl.fest_team_id = ft.id
        WHERE ftl.user_id = $1 LIMIT 1`,
@@ -1268,11 +1290,11 @@ router.get('/leader/dashboard', authenticate, authorize('leader'), async (req: A
     const liveRes = await pool.query(
       `SELECT id, title, category, status, is_called
        FROM fest_programs
-       WHERE status IN ('live', 'scheduled')
+       WHERE status IN ('live', 'scheduled') AND event_type = $1
        ORDER BY 
          CASE WHEN status = 'live' THEN 1 ELSE 2 END ASC, 
          title ASC
-       LIMIT 5`
+       LIMIT 5`, [team.event_type]
     );
 
     // Get leaderboard for context
@@ -1282,8 +1304,9 @@ router.get('/leader/dashboard', authenticate, authorize('leader'), async (req: A
        LEFT JOIN fest_participants part ON t.id = part.fest_team_id
        LEFT JOIN fest_registrations reg ON part.id = reg.fest_participant_id
        LEFT JOIN fest_results r ON reg.id = r.fest_registration_id AND r.published_at IS NOT NULL
+       WHERE t.event_type = $1
        GROUP BY t.id, t.name
-       ORDER BY total_points DESC`
+       ORDER BY total_points DESC`, [team.event_type]
     );
 
     // Get stored notifications from DB (limit 50)
@@ -1462,9 +1485,10 @@ router.get('/leader/programs', authenticate, authorize('leader'), async (req: Au
   try {
     // Determine the teamId from the token's teamId or DB
     const userId = req.user!.id;
-    const teamRes = await pool.query(`SELECT fest_team_id FROM fest_team_leaders WHERE user_id = $1 LIMIT 1`, [userId]);
+    const teamRes = await pool.query(`SELECT fest_team_id, event_type FROM fest_team_leaders fl JOIN fest_teams t ON fl.fest_team_id = t.id WHERE fl.user_id = $1 LIMIT 1`, [userId]);
     if (teamRes.rows.length === 0) return res.status(403).json({ error: 'No team assigned' });
     const teamId = teamRes.rows[0].fest_team_id;
+    const eventType = teamRes.rows[0].event_type || 'MAIN';
 
     const { rows } = await pool.query(`
       SELECT p.*,
@@ -1477,8 +1501,9 @@ router.get('/leader/programs', authenticate, authorize('leader'), async (req: Au
                '[]'::json
              ) as registered_participants
       FROM fest_programs p
+      WHERE p.event_type = $2
       ORDER BY p.category, p.type, p.title
-    `, [teamId]);
+    `, [teamId, eventType]);
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Server error' });
@@ -1586,8 +1611,9 @@ router.delete('/leader/programs/:id/register', authenticate, authorize('leader')
 });
 
 // Admin get all results (published and unpublished)
-router.get('/admin/results', authenticate, authorize('admin'), async (_req, res) => {
+router.get('/admin/results', authenticate, authorize('admin'), async (req, res) => {
   try {
+    const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(`
       SELECT r.id, r.position, r.points, r.published_at,
              reg.code_letter,
@@ -1601,8 +1627,9 @@ router.get('/admin/results', authenticate, authorize('admin'), async (_req, res)
       JOIN fest_participants part ON reg.fest_participant_id = part.id
       JOIN students s ON part.student_id = s.id
       JOIN fest_teams t ON part.fest_team_id = t.id
+      WHERE p.event_type = $1
       ORDER BY r.published_at DESC NULLS FIRST, p.title, r.position
-    `);
+    `, [eventType]);
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Server error' });

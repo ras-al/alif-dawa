@@ -1,0 +1,3 @@
+ALTER TABLE fest_teams ADD COLUMN event_type VARCHAR(20) DEFAULT 'MAIN';
+ALTER TABLE fest_programs ADD COLUMN event_type VARCHAR(20) DEFAULT 'MAIN';
+ALTER TABLE fest_participants ADD COLUMN event_type VARCHAR(20) DEFAULT 'MAIN';

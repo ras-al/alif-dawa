@@ -21,6 +21,7 @@ interface LeaderboardTeam {
 
 const FestHome = () => {
   const [activeTab, setActiveTab] = useState<'about' | 'results' | 'news' | 'social' | 'gallery'>('about');
+  const [eventType, setEventType] = useState<'MAIN' | 'HIFZ'>('MAIN');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [results, setResults] = useState<Result[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardTeam[]>([]);
@@ -32,8 +33,8 @@ const FestHome = () => {
     const fetchData = async () => {
       try {
         const [resResults, resLeaderboard] = await Promise.all([
-          axios.get('http://localhost:5000/api/fest/public/results'),
-          axios.get('http://localhost:5000/api/fest/public/leaderboard')
+          axios.get(`http://localhost:5000/api/fest/public/results?event_type=${eventType}`),
+          axios.get(`http://localhost:5000/api/fest/public/leaderboard?event_type=${eventType}`)
         ]);
         setResults(resResults.data);
         setLeaderboard(resLeaderboard.data);
@@ -46,7 +47,7 @@ const FestHome = () => {
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [eventType]);
 
   const handleShare = (result: Result) => {
     const text = `Fest Result Published!\n\nEvent: ${result.program_title} (${result.category})\nWinner: ${result.student_name} (${result.team_name})\nPosition: ${result.position}\n\nCongratulations!`;
@@ -98,6 +99,30 @@ const FestHome = () => {
           <a href="/fest/login" className="hidden md:flex px-5 py-2.5 bg-[#7A0C1E] text-[#F2F0E9] border-[3px] border-[#111111] text-sm font-bold uppercase tracking-widest shadow-[4px_4px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all items-center gap-2">
             Login <ChevronRight size={16} strokeWidth={3} />
           </a>
+        </div>
+        
+        {/* Event Switcher */}
+        <div className="max-w-6xl mx-auto flex justify-center gap-4 mt-3">
+          <button
+            onClick={() => { setEventType('MAIN'); setCategoryFilter('All'); }}
+            className={`px-4 py-1.5 text-xs font-bold uppercase tracking-widest border-[2px] border-[#111111] transition-all
+              ${eventType === 'MAIN' 
+                ? 'bg-[#7A0C1E] text-[#F2F0E9] shadow-[2px_2px_0_#111111] translate-y-[-2px]' 
+                : 'bg-white text-[#111111] shadow-[2px_2px_0_#111111]'
+              }`}
+          >
+            Main Fest
+          </button>
+          <button
+            onClick={() => { setEventType('HIFZ'); setCategoryFilter('All'); }}
+            className={`px-4 py-1.5 text-xs font-bold uppercase tracking-widest border-[2px] border-[#111111] transition-all
+              ${eventType === 'HIFZ' 
+                ? 'bg-[#14532D] text-[#F2F0E9] shadow-[2px_2px_0_#111111] translate-y-[-2px]' 
+                : 'bg-white text-[#111111] shadow-[2px_2px_0_#111111]'
+              }`}
+          >
+            Hifz Fest
+          </button>
         </div>
       </header>
 
@@ -179,13 +204,16 @@ const FestHome = () => {
                       The fest is fiercely contested by three magnificent teams:
                     </p>
                     <ul className="space-y-3 sm:space-y-4">
-                      {[
+                      {(eventType === 'MAIN' ? [
                         { name: 'Vanguard', desc: 'Leading the way' },
                         { name: 'Renegades', desc: 'Defying limits' },
                         { name: 'Divergent', desc: 'Thinking differently' },
-                      ].map(team => (
+                      ] : [
+                        { name: 'Furqan', desc: 'The Criterion' },
+                        { name: 'Burhan', desc: 'The Proof' }
+                      ]).map(team => (
                         <li key={team.name} className="flex items-center gap-4 p-3 border-[3px] border-[#111111] bg-[#F2F0E9]">
-                          <div className="w-4 h-4 bg-[#7A0C1E] border-2 border-[#111111]"></div>
+                          <div className={`w-4 h-4 ${eventType === 'MAIN' ? 'bg-[#7A0C1E]' : 'bg-[#14532D]'} border-2 border-[#111111]`}></div>
                           <strong className="text-xl uppercase">{team.name}</strong>
                           <span className="font-medium text-sm ml-auto hidden sm:inline-block">{team.desc}</span>
                         </li>
@@ -196,16 +224,21 @@ const FestHome = () => {
 
                 {/* Categories */}
                 <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-6">
-                  {[
+                  {(eventType === 'MAIN' ? [
                     { name: 'Premier', nameml: 'പ്രീമിയര്‍' },
                     { name: 'Senior', nameml: 'സീനിയര്‍' },
                     { name: 'Junior', nameml: 'ജൂനിയര്‍' },
                     { name: 'General', nameml: 'ജനറല്‍' },
-                  ].map((cat) => (
+                  ] : [
+                    { name: 'Stage', nameml: 'സ്റ്റേജ്' },
+                    { name: 'General Stage', nameml: 'ജനറല്‍ സ്റ്റേജ്' },
+                    { name: 'Off-Stage', nameml: 'ഓഫ്-സ്റ്റേജ്' },
+                    { name: 'General Off-Stage', nameml: 'ജനറല്‍ ഓഫ്-സ്റ്റേജ്' },
+                  ]).map((cat) => (
                     <div key={cat.name} className={`bg-white border-[3px] border-[#111111] p-6 text-center shadow-[6px_6px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_#111111] transition-all cursor-default`}>
                       <BookOpen className={`mx-auto mb-4 text-[#111111]`} size={32} strokeWidth={2.5} />
                       <p className={`font-black text-xl uppercase tracking-wider`}>{cat.name}</p>
-                      <p className="text-sm font-bold mt-2 text-[#7A0C1E]">{cat.nameml}</p>
+                      <p className={`text-sm font-bold mt-2 ${eventType === 'MAIN' ? 'text-[#7A0C1E]' : 'text-[#14532D]'}`}>{cat.nameml}</p>
                     </div>
                   ))}
                 </div>
@@ -242,9 +275,9 @@ const FestHome = () => {
                   </p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 max-w-4xl mx-auto relative z-10">
                     {[
-                      { num: '3', label: 'Teams' },
-                      { num: '50+', label: 'Events' },
-                      { num: '300+', label: 'Participants' },
+                      { num: eventType === 'MAIN' ? '3' : '2', label: 'Teams' },
+                      { num: eventType === 'MAIN' ? '50+' : '20+', label: 'Events' },
+                      { num: eventType === 'MAIN' ? '300+' : '28', label: 'Participants' },
                       { num: '4', label: 'Categories' },
                     ].map(stat => (
                       <div key={stat.label} className="bg-[#111111] p-4 sm:p-6 border-[3px] border-white shadow-[3px_3px_0_#F2F0E9] sm:shadow-[4px_4px_0_#F2F0E9] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
@@ -267,7 +300,7 @@ const FestHome = () => {
 
                 {/* Category Filter */}
                 <div className="flex flex-wrap gap-2 sm:gap-4 mb-8 sm:mb-10">
-                  {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+                  {['All', ...(eventType === 'MAIN' ? ['Premier', 'Junior', 'Senior', 'General'] : ['Stage', 'General Stage', 'Off-Stage', 'General Off-Stage'])].map(cat => (
                     <button
                       key={cat}
                       onClick={() => setCategoryFilter(cat)}

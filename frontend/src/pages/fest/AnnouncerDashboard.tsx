@@ -4,11 +4,12 @@ import { Megaphone, Info } from 'lucide-react';
 
 export default function AnnouncerDashboard() {
   const [pending, setPending] = useState([]);
+  const [eventType, setEventType] = useState<'MAIN' | 'HIFZ'>('MAIN');
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await api.get('/fest/announcer/pending');
+        const res = await api.get(`/fest/announcer/pending?event_type=${eventType}`);
         setPending(res.data);
       } catch (err) {
         console.error(err);
@@ -17,7 +18,7 @@ export default function AnnouncerDashboard() {
     load();
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [eventType]);
 
   const handlePublish = async (programId: number) => {
     if (!confirm('Are you sure you want to publish these results to the public immediately?')) return;
@@ -33,7 +34,13 @@ export default function AnnouncerDashboard() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Announcer Console</h1>
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">Announcer Console</h1>
+        <div className="flex gap-2">
+          <button onClick={() => setEventType('MAIN')} className={`px-4 py-2 text-xs font-bold rounded-lg border transition-colors ${eventType === 'MAIN' ? 'bg-[#14532D] text-white border-[#14532D]' : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-300'}`}>MAIN FEST</button>
+          <button onClick={() => setEventType('HIFZ')} className={`px-4 py-2 text-xs font-bold rounded-lg border transition-colors ${eventType === 'HIFZ' ? 'bg-[#14532D] text-white border-[#14532D]' : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-300'}`}>HIFZ FEST</button>
+        </div>
+      </div>
 
       <div className="mb-8 bg-blue-50 border border-blue-100 rounded-2xl p-6 text-blue-900 shadow-sm">
         <h3 className="font-bold text-lg mb-2 flex items-center gap-2">

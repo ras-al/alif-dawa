@@ -14,10 +14,11 @@ export default function StageAdminDashboard() {
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState('All');
   const [saving, setSaving] = useState(false);
+  const [eventType, setEventType] = useState<'MAIN' | 'HIFZ'>('MAIN');
 
   const fetchPrograms = async () => {
     try {
-      const res = await api.get('/fest/public/programs');
+      const res = await api.get(`/fest/public/programs?event_type=${eventType}`);
       setPrograms(res.data);
     } catch (err) { console.error(err); }
   };
@@ -26,7 +27,7 @@ export default function StageAdminDashboard() {
     fetchPrograms();
     const iv = setInterval(fetchPrograms, 15000);
     return () => clearInterval(iv);
-  }, []);
+  }, [eventType]);
 
   const fetchParticipants = async (programId: number) => {
     try {
@@ -322,9 +323,15 @@ export default function StageAdminDashboard() {
   // ===== PROGRAMS LIST VIEW =====
   return (
     <div className="max-w-7xl mx-auto pb-12">
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Stage Admin Dashboard</h1>
-        <p className="text-slate-500 text-sm mt-1">Manage events with the workflow: Go Live → Attendance → Pick Codes → Finish → Judging</p>
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Stage Admin Dashboard</h1>
+          <p className="text-slate-500 text-sm mt-1">Manage events with the workflow: Go Live → Attendance → Pick Codes → Finish → Judging</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setEventType('MAIN')} className={`px-4 py-2 text-xs font-bold rounded-lg border transition-colors ${eventType === 'MAIN' ? 'bg-[#14532D] text-white border-[#14532D]' : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-300'}`}>MAIN FEST</button>
+          <button onClick={() => setEventType('HIFZ')} className={`px-4 py-2 text-xs font-bold rounded-lg border transition-colors ${eventType === 'HIFZ' ? 'bg-[#14532D] text-white border-[#14532D]' : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-300'}`}>HIFZ FEST</button>
+        </div>
       </div>
 
       <div className="mb-8 bg-blue-50 border border-blue-100 rounded-2xl p-6 text-blue-900 shadow-sm">

@@ -9,13 +9,14 @@ export default function GreenRoomDashboard() {
   const [selectedProgram, setSelectedProgram] = useState<any>(null);
   const [marksData, setMarksData] = useState([]);
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [eventType, setEventType] = useState<'MAIN' | 'HIFZ'>('MAIN');
 
   useEffect(() => {
     async function loadPrograms() {
       try {
         const [pendRes, verRes] = await Promise.all([
-          api.get('/fest/green-room/pending'),
-          api.get('/fest/green-room/verified')
+          api.get(`/fest/green-room/pending?event_type=${eventType}`),
+          api.get(`/fest/green-room/verified?event_type=${eventType}`)
         ]);
         setPendingPrograms(pendRes.data);
         setVerifiedPrograms(verRes.data);
@@ -26,7 +27,7 @@ export default function GreenRoomDashboard() {
     loadPrograms();
     const interval = setInterval(loadPrograms, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [eventType]);
 
   const loadMarks = async (programId: number) => {
     try {
@@ -106,8 +107,8 @@ export default function GreenRoomDashboard() {
       setSelectedProgram(null);
       // reload
       const [pendRes, verRes] = await Promise.all([
-        api.get('/fest/green-room/pending'),
-        api.get('/fest/green-room/verified')
+        api.get(`/fest/green-room/pending?event_type=${eventType}`),
+        api.get(`/fest/green-room/verified?event_type=${eventType}`)
       ]);
       setPendingPrograms(pendRes.data);
       setVerifiedPrograms(verRes.data);
@@ -124,8 +125,8 @@ export default function GreenRoomDashboard() {
       alert('Verification undone successfully!');
       // reload
       const [pendRes, verRes] = await Promise.all([
-        api.get('/fest/green-room/pending'),
-        api.get('/fest/green-room/verified')
+        api.get(`/fest/green-room/pending?event_type=${eventType}`),
+        api.get(`/fest/green-room/verified?event_type=${eventType}`)
       ]);
       setPendingPrograms(pendRes.data);
       setVerifiedPrograms(verRes.data);
@@ -137,7 +138,13 @@ export default function GreenRoomDashboard() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Green Room Verification</h1>
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">Green Room Verification</h1>
+        <div className="flex gap-2">
+          <button onClick={() => setEventType('MAIN')} className={`px-4 py-2 text-xs font-bold rounded-lg border transition-colors ${eventType === 'MAIN' ? 'bg-[#14532D] text-white border-[#14532D]' : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-300'}`}>MAIN FEST</button>
+          <button onClick={() => setEventType('HIFZ')} className={`px-4 py-2 text-xs font-bold rounded-lg border transition-colors ${eventType === 'HIFZ' ? 'bg-[#14532D] text-white border-[#14532D]' : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-300'}`}>HIFZ FEST</button>
+        </div>
+      </div>
       
       <div className="mb-8 bg-blue-50 border border-blue-100 rounded-2xl p-6 text-blue-900 shadow-sm">
         <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
