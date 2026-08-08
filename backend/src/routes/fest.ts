@@ -21,7 +21,12 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    cb(null, 'poster-template.png');
+    const ext = path.extname(file.originalname) || '.png';
+    if (file.fieldname === 'card_template') {
+      cb(null, `participant-card-template${ext}`);
+    } else {
+      cb(null, `poster-template${ext}`);
+    }
   }
 });
 const upload = multer({ storage });
@@ -417,82 +422,7 @@ router.put('/admin/fest-settings', authorize('admin'), async (req: AuthRequest, 
   }
 });
 
-// Bulk download participant ID cards as PDF
-router.get('/admin/participants/download-cards', authorize('admin'), async (req: AuthRequest, res) => {
-  try {
-    const { rows } = await pool.query(`
-      SELECT p.id, p.chest_number, p.category, s.name as student_name, s.admission_number, t.name as team_name
-      FROM fest_participants p
-      JOIN students s ON p.student_id = s.id
-      JOIN fest_teams t ON p.fest_team_id = t.id
-      ORDER BY t.name, p.chest_number ASC
-    `);
 
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'No participants found' });
-    }
-
-    const doc = new PDFDocument({ size: 'A4', margin: 30 });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="participant-id-cards.pdf"');
-    doc.pipe(res);
-
-    const cardWidth = 250;
-    const cardHeight = 150;
-    const cardsPerRow = 2;
-    const cardsPerPage = 8;
-    const gapX = 15;
-    const gapY = 15;
-    const startX = 30;
-    const startY = 30;
-
-    rows.forEach((p: any, i: number) => {
-      const posOnPage = i % cardsPerPage;
-      if (i > 0 && posOnPage === 0) doc.addPage();
-
-      const col = posOnPage % cardsPerRow;
-      const row = Math.floor(posOnPage / cardsPerRow);
-      const x = startX + col * (cardWidth + gapX);
-      const y = startY + row * (cardHeight + gapY);
-
-      // Card border
-      doc.roundedRect(x, y, cardWidth, cardHeight, 8).stroke('#14532D');
-
-      // Header bar
-      doc.save();
-      doc.roundedRect(x, y, cardWidth, 30, 8).clip();
-      doc.rect(x, y, cardWidth, 30).fill('#14532D');
-      doc.restore();
-      doc.rect(x, y + 22, cardWidth, 8).fill('#14532D');
-
-      doc.font('Helvetica-Bold').fontSize(10).fillColor('#FFFFFF');
-      doc.text('ALIF DAWA FEST', x + 10, y + 9, { width: cardWidth - 20 });
-
-      // Chest number (large)
-      doc.font('Helvetica-Bold').fontSize(36).fillColor('#14532D');
-      doc.text(String(p.chest_number), x + 10, y + 40, { width: 80, align: 'center' });
-
-      // Info
-      doc.font('Helvetica-Bold').fontSize(11).fillColor('#1e293b');
-      doc.text(p.student_name, x + 100, y + 40, { width: cardWidth - 110 });
-
-      doc.font('Helvetica').fontSize(8).fillColor('#64748b');
-      doc.text(`Team: ${p.team_name}`, x + 100, y + 58, { width: cardWidth - 110 });
-      doc.text(`Category: ${p.category || 'N/A'}`, x + 100, y + 70, { width: cardWidth - 110 });
-      doc.text(`Adm: ${p.admission_number}`, x + 100, y + 82, { width: cardWidth - 110 });
-
-      // Bottom line
-      doc.moveTo(x + 10, y + cardHeight - 20).lineTo(x + cardWidth - 10, y + cardHeight - 20).stroke('#e2e8f0');
-      doc.font('Helvetica').fontSize(6).fillColor('#94a3b8');
-      doc.text('Participant ID Card', x + 10, y + cardHeight - 15, { width: cardWidth - 20, align: 'center' });
-    });
-
-    doc.end();
-  } catch (err: any) {
-    console.error('Bulk download error:', err);
-    res.status(500).json({ error: err.message || 'Server error' });
-  }
-});
 
 router.get('/admin/individual-points', authorize('admin'), async (req: AuthRequest, res) => {
   try {
@@ -1676,6 +1606,57 @@ router.post('/admin/poster-template', authenticate, authorize('admin'), upload.s
 router.get('/public/poster-template', async (_req, res) => {
   try {
     const { rows } = await pool.query(`SELECT image_url, config FROM fest_poster_templates ORDER BY id DESC LIMIT 1`);
+    if (rows.length === 0) {
+      return res.json({ configured: false, image_url: null, config: null });
+    }
+    res.json({ configured: true, ...rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// ==========================================
+// PARTICIPANT CARD TEMPLATE
+// ==========================================
+
+// Admin upload participant card template and save config
+router.post('/admin/participant-card-template', authenticate, authorize('admin'), upload.single('card_template'), async (req: AuthRequest, res) => {
+  try {
+    const config = req.body.config || '{}';
+    
+    const existing = await pool.query(`SELECT id, image_url FROM fest_participant_card_templates ORDER BY id DESC LIMIT 1`);
+    
+    let imageUrl = existing.rows.length > 0 ? existing.rows[0].image_url : '';
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`;
+    }
+
+    if (!imageUrl && !req.file) {
+      return res.status(400).json({ error: 'Image file is required for the first template.' });
+    }
+
+    if (existing.rows.length > 0) {
+      await pool.query(
+        `UPDATE fest_participant_card_templates SET image_url = $1, config = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+        [imageUrl, config, existing.rows[0].id]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO fest_participant_card_templates (image_url, config) VALUES ($1, $2)`,
+        [imageUrl, config]
+      );
+    }
+
+    res.json({ success: true, image_url: imageUrl, config: JSON.parse(config) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Public GET participant card template
+router.get('/public/participant-card-template', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT image_url, config FROM fest_participant_card_templates ORDER BY id DESC LIMIT 1`);
     if (rows.length === 0) {
       return res.json({ configured: false, image_url: null, config: null });
     }
