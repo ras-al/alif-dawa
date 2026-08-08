@@ -705,6 +705,7 @@ export default function LeaderDashboard() {
               <div className="space-y-2">
                 {data.participants
                   .filter((p: any) => {
+                    if (data.team.event_type === 'HIFZ') return true;
                     if (manageProgram.category === 'General') return true;
                     return p.category === manageProgram.category;
                   })
@@ -732,7 +733,7 @@ export default function LeaderDashboard() {
                       </label>
                     );
                   })}
-                {data.participants.filter((p: any) => manageProgram.category === 'General' || p.category === manageProgram.category).length === 0 && (
+                {data.participants.filter((p: any) => data.team.event_type === 'HIFZ' || manageProgram.category === 'General' || p.category === manageProgram.category).length === 0 && (
                   <p className="text-center py-8 text-slate-500 text-sm">No {manageProgram.category} participants available in your team.</p>
                 )}
               </div>

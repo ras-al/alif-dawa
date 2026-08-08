@@ -63,6 +63,7 @@ export function useParticipantCardGenerator() {
         ctx.font = `${settings.fontWeight || 'bold'} ${settings.fontSize}px '${settings.fontFamily || 'Inter'}', sans-serif`;
         ctx.fillStyle = settings.color;
         ctx.textAlign = (settings.textAlign as CanvasTextAlign) || 'left';
+        ctx.textBaseline = 'top';
 
         // Text shadow for readability
         if (settings.shadow !== false) {
@@ -147,6 +148,7 @@ export function useParticipantCardGenerator() {
           ctx.font = `${settings.fontWeight || 'bold'} ${settings.fontSize}px '${settings.fontFamily || 'Inter'}', sans-serif`;
           ctx.fillStyle = settings.color;
           ctx.textAlign = (settings.textAlign as CanvasTextAlign) || 'left';
+          ctx.textBaseline = 'top';
           if (settings.shadow !== false) {
             ctx.shadowColor = 'rgba(0,0,0,0.25)';
             ctx.shadowBlur = 3;

@@ -377,7 +377,7 @@ export default function AdminFestDashboard() {
         student_name: p.student_name,
         chest_number: p.chest_number,
         team_name: p.team_name,
-        category: p.category
+        category: eventType === 'HIFZ' ? 'Hifz' : p.category
       })),
       (current, total) => setBulkCardProgress({ current, total })
     );
@@ -1288,7 +1288,7 @@ export default function AdminFestDashboard() {
                           {Object.entries(cardConfig).map(([key, config]) => (
                             config.visible && (
                               <div key={key} style={{ position: 'absolute', left: config.x, top: config.y, color: config.color, fontSize: config.fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
-                                {key === 'student_name' ? 'Ahmed Raza' : key === 'chest_number' ? '501' : key === 'team_name' ? 'Furqan' : 'Stage'}
+                                {key === 'student_name' ? 'Ahmed Raza' : key === 'chest_number' ? '501' : key === 'team_name' ? 'Furqan' : (eventType === 'HIFZ' ? 'Hifz' : 'Premier')}
                               </div>
                             )
                           ))}
@@ -1348,7 +1348,7 @@ export default function AdminFestDashboard() {
                             <td className="px-6 py-3 text-slate-600">{p.team_name}</td>
                             <td className="px-6 py-3 text-right">
                               <button
-                                onClick={() => generateCard({ id: p.id, student_name: p.student_name, chest_number: p.chest_number, team_name: p.team_name, category: p.category })}
+                                onClick={() => generateCard({ id: p.id, student_name: p.student_name, chest_number: p.chest_number, team_name: p.team_name, category: eventType === 'HIFZ' ? 'Hifz' : p.category })}
                                 disabled={loadingCardId === p.id}
                                 className="p-2 bg-[#14532D]/10 text-[#14532D] hover:bg-[#14532D] hover:text-white rounded-lg transition-colors inline-flex disabled:opacity-50"
                                 title="Download Participant Card"
