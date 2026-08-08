@@ -346,7 +346,7 @@ export default function StageAdminDashboard() {
 
       <div className="flex flex-wrap gap-2 mb-3">
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider self-center mr-1">Category:</span>
-        {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+        {['All', ...(eventType === 'MAIN' ? ['Premier', 'Junior', 'Senior', 'General'] : ['Stage', 'General Stage', 'Off-Stage', 'General Off-Stage'])].map(cat => (
           <button key={cat} onClick={() => setCategoryFilter(cat)}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{cat}</button>
         ))}

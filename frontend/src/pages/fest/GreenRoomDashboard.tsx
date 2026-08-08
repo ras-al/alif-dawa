@@ -177,7 +177,7 @@ export default function GreenRoomDashboard() {
 
           {/* Category Filter */}
           <div className="flex flex-wrap gap-2 mb-4">
-            {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+            {['All', ...(eventType === 'MAIN' ? ['Premier', 'Junior', 'Senior', 'General'] : ['Stage', 'General Stage', 'Off-Stage', 'General Off-Stage'])].map(cat => (
               <button key={cat} onClick={() => setCategoryFilter(cat)}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                 {cat}

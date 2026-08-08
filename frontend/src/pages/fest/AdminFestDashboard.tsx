@@ -524,7 +524,7 @@ export default function AdminFestDashboard() {
                 {/* Filters */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border-b border-slate-100">
                   <div className="flex flex-wrap gap-2">
-                    {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+                    {['All', ...(eventType === 'MAIN' ? ['Premier', 'Junior', 'Senior', 'General'] : ['Stage', 'General Stage', 'Off-Stage', 'General Off-Stage'])].map(cat => (
                       <button key={cat} onClick={() => setCategoryFilter(cat)}
                         className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                         {cat}
@@ -900,7 +900,7 @@ export default function AdminFestDashboard() {
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                 {/* Category Filter */}
                 <div className="flex flex-wrap gap-2 p-4 border-b border-slate-100">
-                  {['All', 'Premier', 'Junior', 'Senior'].map(cat => (
+                  {['All', ...(eventType === 'MAIN' ? ['Premier', 'Junior', 'Senior'] : ['Stage', 'General Stage', 'Off-Stage', 'General Off-Stage'])].map(cat => (
                     <button key={cat} onClick={() => setCategoryFilter(cat)}
                       className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                       {cat}

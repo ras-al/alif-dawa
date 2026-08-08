@@ -23,6 +23,7 @@ interface DashboardData {
     name: string;
     is_first_leader: boolean;
     total_points: number;
+    event_type?: 'MAIN' | 'HIFZ';
   };
   participants: { id: number; chest_number: string; student_name: string; category?: string }[];
   results: { id: number; position: number; points: number; program_title: string; category: string; student_name: string; chest_number: string; team_name: string }[];
@@ -475,7 +476,7 @@ export default function LeaderDashboard() {
               <h3 className="text-lg font-bold text-slate-900 mb-4">Event Registration</h3>
               {/* Category Filter */}
               <div className="flex flex-wrap gap-2 mb-4">
-                {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+                {['All', ...(data.team.event_type === 'MAIN' ? ['Premier', 'Junior', 'Senior', 'General'] : ['Stage', 'General Stage', 'Off-Stage', 'General Off-Stage'])].map(cat => (
                   <button key={cat} onClick={() => setCategoryFilter(cat)}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                     {cat}
@@ -551,7 +552,7 @@ export default function LeaderDashboard() {
               <h3 className="text-lg font-bold text-slate-900 mb-4">Team Members ({data.participants.length})</h3>
               {/* Category Filter */}
               <div className="flex flex-wrap gap-2 mb-4">
-                {['All', 'Premier', 'Junior', 'Senior'].map(cat => (
+                {['All', ...(data.team.event_type === 'MAIN' ? ['Premier', 'Junior', 'Senior'] : ['Stage', 'General Stage', 'Off-Stage', 'General Off-Stage'])].map(cat => (
                   <button key={cat} onClick={() => setCategoryFilter(cat)}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                     {cat}
@@ -592,7 +593,7 @@ export default function LeaderDashboard() {
               <h3 className="text-lg font-bold text-slate-900 mb-4">Team Results ({data.results.length})</h3>
               {/* Category Filter */}
               <div className="flex flex-wrap gap-2 mb-4">
-                {['All', 'Premier', 'Junior', 'Senior', 'General'].map(cat => (
+                {['All', ...(data.team.event_type === 'MAIN' ? ['Premier', 'Junior', 'Senior', 'General'] : ['Stage', 'General Stage', 'Off-Stage', 'General Off-Stage'])].map(cat => (
                   <button key={cat} onClick={() => setCategoryFilter(cat)}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${categoryFilter === cat ? 'bg-[#14532D] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                     {cat}

@@ -1335,6 +1335,7 @@ router.get('/leader/dashboard', authenticate, authorize('leader'), async (req: A
         name: team.team_name,
         is_first_leader: team.is_first_leader,
         total_points: pointsRes.rows[0].total_points,
+        event_type: team.event_type,
       },
       participants: participantsRes.rows,
       results: resultsRes.rows,
