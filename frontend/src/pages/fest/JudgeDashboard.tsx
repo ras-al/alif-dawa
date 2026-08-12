@@ -174,8 +174,13 @@ export default function JudgeDashboard() {
                 {p.status === 'live' && (
                   <span className="inline-block mt-2 px-2.5 py-0.5 bg-rose-100 text-rose-700 rounded-full text-xs font-bold animate-pulse">● Live Now</span>
                 )}
-                {p.status === 'judging' && (
+                {p.status === 'judging' && !p.judging_locked && (
                   <span className="inline-block mt-2 px-2.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold animate-pulse">● Judging Phase</span>
+                )}
+                {p.judging_locked && (
+                  <span className="inline-block mt-2 px-2.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold flex items-center gap-1 w-max">
+                    <CheckCircle size={12} /> Locked
+                  </span>
                 )}
               </div>
             ))}

@@ -61,7 +61,7 @@ router.get('/public/programs', async (req, res) => {
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT p.id, p.title, p.category, p.type, p.status, p.is_called, p.is_group, p.team_limit,
+      `SELECT p.id, p.title, p.category, p.type, p.status, p.is_called, p.is_group, p.team_limit, p.judging_locked,
               COUNT(r.id)::int as registered_count
        FROM fest_programs p
        LEFT JOIN fest_registrations r ON r.fest_program_id = p.id
@@ -321,6 +321,16 @@ router.put('/admin/programs/:id', authorize('admin'), async (req: AuthRequest, r
   } catch (err: any) {
     console.error(err);
     res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+router.put('/admin/programs/:id/unlock', authorize('admin'), async (req: AuthRequest, res) => {
+  try {
+    await pool.query('UPDATE fest_programs SET judging_locked = false WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -754,7 +764,7 @@ router.get('/green-room/pending', authorize('green_room', 'admin'), async (req, 
     const { rows } = await pool.query(
       `SELECT p.id, p.title, p.category 
        FROM fest_programs p
-       WHERE p.event_type = $1 AND EXISTS (
+       WHERE p.event_type = $1 AND p.judging_locked = true AND EXISTS (
          SELECT 1 FROM fest_registrations reg
          JOIN fest_marks m ON reg.id = m.fest_registration_id
          WHERE reg.fest_program_id = p.id

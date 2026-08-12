@@ -190,6 +190,17 @@ export default function AdminFestDashboard() {
     }
   };
 
+  const handleUnlockProgram = async (id: number) => {
+    if (!confirm('Unlock judging for this program?')) return;
+    try {
+      await api.put(`/fest/admin/programs/${id}/unlock`);
+      loadData();
+      alert('Judging unlocked successfully');
+    } catch (err) {
+      alert('Failed to unlock judging');
+    }
+  };
+
   const handleDeleteTeam = async (id: number) => {
     if (!confirm('Delete this team?')) return;
     try {
@@ -617,6 +628,11 @@ export default function AdminFestDashboard() {
                               <button onClick={() => handleDeleteProgram(p.id)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-2 rounded-lg transition-colors inline-flex items-center justify-center" title="Delete Program">
                                 <Trash2 size={18} />
                               </button>
+                              {p.judging_locked && (
+                                <button onClick={() => handleUnlockProgram(p.id)} className="text-amber-500 hover:text-amber-700 hover:bg-amber-50 p-2 rounded-lg transition-colors inline-flex items-center justify-center" title="Unlock Judging">
+                                  <Unlock size={18} />
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}
