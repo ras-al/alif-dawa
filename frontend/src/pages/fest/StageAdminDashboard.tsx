@@ -282,7 +282,32 @@ export default function StageAdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {presentParticipants.map(p => (
+                  {isGroupEvent ? Object.values(presentParticipants.reduce((acc, p) => {
+                    if (!acc[p.team_id]) {
+                      acc[p.team_id] = { ...p, members: [p.student_name] };
+                    } else {
+                      acc[p.team_id].members.push(p.student_name);
+                    }
+                    return acc;
+                  }, {} as any)).map((p: any) => (
+                    <tr key={p.team_id} className="hover:bg-slate-50/50">
+                      <td className="px-5 py-3 font-mono font-bold text-slate-900">Group</td>
+                      <td className="px-5 py-3 font-medium">Team {p.team_name} <span className="text-xs text-slate-500 block">{p.members.join(', ')}</span></td>
+                      <td className="px-5 py-3 text-slate-600">{p.team_name}</td>
+                      <td className="px-5 py-3 text-right">
+                        {p.code_letter ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <span className="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 font-bold font-mono text-lg rounded shadow-sm">{p.code_letter}</span>
+                            <button onClick={() => handleResetSingleCode(p.registration_id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"><RotateCcw size={14} /></button>
+                          </div>
+                        ) : (
+                          <button onClick={() => handleGenerateCode(p.registration_id)} className="bg-[#14532D] text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#14532D]/90 flex items-center gap-1.5 ml-auto shadow-sm">
+                            <Key size={14} /> Pick Code
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )) : presentParticipants.map(p => (
                     <tr key={p.registration_id} className="hover:bg-slate-50/50">
                       <td className="px-5 py-3 font-mono font-bold text-slate-900">{p.chest_number}</td>
                       <td className="px-5 py-3 font-medium">{p.student_name}</td>
