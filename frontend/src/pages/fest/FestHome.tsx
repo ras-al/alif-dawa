@@ -69,9 +69,6 @@ const FestHome = () => {
             <div className="font-black text-xl sm:text-2xl tracking-tighter uppercase">
               ALIF DAWA <span className="text-[#7A0C1E]">FEST</span>
             </div>
-            <a href="/fest/login" className="md:hidden px-4 py-2 bg-[#7A0C1E] text-[#F2F0E9] border-[3px] border-[#111111] text-xs font-bold uppercase tracking-widest shadow-[2px_2px_0_#111111] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center gap-1">
-              Login <ChevronRight size={14} strokeWidth={3} />
-            </a>
           </div>
           
           <div className="w-full md:w-auto flex-1 flex justify-start md:justify-center overflow-x-auto no-scrollbar gap-2 pb-1">
@@ -95,10 +92,6 @@ const FestHome = () => {
               </button>
             ))}
           </div>
-
-          <a href="/fest/login" className="hidden md:flex px-5 py-2.5 bg-[#7A0C1E] text-[#F2F0E9] border-[3px] border-[#111111] text-sm font-bold uppercase tracking-widest shadow-[4px_4px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all items-center gap-2">
-            Login <ChevronRight size={16} strokeWidth={3} />
-          </a>
         </div>
         
         {/* Event Switcher */}
