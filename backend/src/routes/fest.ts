@@ -866,10 +866,11 @@ router.get('/announcer/pending', authorize('announcer', 'admin'), async (req, re
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT DISTINCT p.id, p.title, p.category 
-       FROM fest_programs p
-       JOIN fest_results r ON p.id = r.fest_program_id
-       WHERE r.published_at IS NULL AND p.event_type = $1`, [eventType]
+      `SELECT id, title, category 
+       FROM fest_programs 
+       WHERE status = 'completed' AND event_type = $1 AND NOT EXISTS (
+         SELECT 1 FROM fest_results WHERE fest_program_id = fest_programs.id AND published_at IS NOT NULL
+       )`, [eventType]
     );
     res.json(rows);
   } catch (err) {
