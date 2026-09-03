@@ -4,8 +4,8 @@ import { Megaphone, Info, RefreshCw, Undo2 } from 'lucide-react';
 
 export default function AnnouncerDashboard() {
   const [activeTab, setActiveTab] = useState<'pending' | 'published'>('pending');
-  const [pending, setPending] = useState([]);
-  const [published, setPublished] = useState([]);
+  const [pending, setPending] = useState<any[]>([]);
+  const [published, setPublished] = useState<any[]>([]);
   const [eventType, setEventType] = useState<'MAIN' | 'HIFZ'>('MAIN');
 
   useEffect(() => {
