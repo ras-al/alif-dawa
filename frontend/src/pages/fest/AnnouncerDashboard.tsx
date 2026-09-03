@@ -116,7 +116,7 @@ export default function AnnouncerDashboard() {
               <p className="text-slate-500 text-sm mb-3">{p.category}</p>
               {p.winners && p.winners.map((w: any) => (
                 <div key={w.position} className="text-sm border-l-2 border-[#14532D] pl-2 mb-1">
-                  <strong>{w.position === 1 ? '1st' : w.position === 2 ? '2nd' : '3rd'} Place:</strong> {w.student_name} <span className="text-slate-400">({w.team_name})</span>
+                  <strong>{w.position === 1 ? '1st' : w.position === 2 ? '2nd' : '3rd'} Place:</strong> {w.student_name} <span className="text-slate-400">({w.team_name} - {w.points} pts)</span>
                 </div>
               ))}
             </div>

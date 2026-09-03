@@ -870,6 +870,7 @@ router.get('/announcer/pending', authorize('announcer', 'admin'), async (req, re
         (
           SELECT json_agg(json_build_object(
             'position', r.position,
+            'points', r.points,
             'student_name', s.name,
             'team_name', t.name
           ) ORDER BY r.position ASC)
