@@ -350,33 +350,33 @@ const FestHome = () => {
                         </button>
                         
                         {expandedEvents[group.title] && (
-                          <div className="p-0">
-                          {group.results.map((res, rIdx) => (
-                            <div key={res.id} className={`p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${rIdx !== group.results.length - 1 ? 'border-b-[3px] border-[#111111]' : ''} ${res.position === 1 ? 'bg-[#F2F0E9]' : 'bg-white'}`}>
-                              <div className="flex items-center gap-4 sm:gap-6">
-                                <span className={`inline-flex flex-shrink-0 items-center justify-center w-10 h-10 sm:w-14 sm:h-14 font-black text-lg sm:text-2xl border-[3px] border-[#111111] ${res.position === 1 ? 'bg-[#7A0C1E] text-white shadow-[3px_3px_0_#111111]' : 'bg-white text-[#111111] shadow-[3px_3px_0_#7A0C1E]'}`}>
-                                  #{res.position}
-                                </span>
-                                <div>
-                                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                                    <span className="font-black text-base sm:text-xl uppercase tracking-wider">{res.team_name}</span>
-                                    <span className="font-bold px-1.5 py-0.5 bg-[#111111] text-white text-[10px] sm:text-xs uppercase tracking-widest">
+                          <div className="p-4 sm:p-6 bg-[#F2F0E9]">
+                            <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                              {group.results.filter(r => r.position <= 3).map((res) => (
+                                <div key={res.id} className="bg-white border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] flex flex-col h-full">
+                                  <div className="p-4 border-b-[3px] border-[#111111] flex justify-between items-center bg-[#F2F0E9]">
+                                    <span className={`inline-flex flex-shrink-0 items-center justify-center w-12 h-12 font-black text-2xl border-[3px] border-[#111111] ${res.position === 1 ? 'bg-[#7A0C1E] text-white shadow-[3px_3px_0_#111111]' : 'bg-white text-[#111111] shadow-[3px_3px_0_#7A0C1E]'}`}>
+                                      #{res.position}
+                                    </span>
+                                    <span className="font-black px-2 py-1 bg-[#111111] text-white text-xs uppercase tracking-widest">
                                       {res.points} PTS
                                     </span>
                                   </div>
-                                  <p className="text-xs sm:text-sm font-bold text-slate-600 uppercase leading-snug max-w-[200px] sm:max-w-md">{res.student_name}</p>
+                                  <div className="p-4 flex-grow">
+                                    <h4 className="font-black text-xl uppercase tracking-wider mb-1">{res.team_name}</h4>
+                                    <p className="text-sm font-bold text-slate-600 uppercase leading-snug">{res.student_name}</p>
+                                  </div>
+                                  <div className="flex border-t-[3px] border-[#111111] mt-auto">
+                                    <button onClick={() => handleShare(res)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3 border-r-[3px] border-[#111111] hover:bg-[#F2F0E9] font-black uppercase text-xs transition-colors">
+                                      <Share2 size={14} strokeWidth={3} /> Share
+                                    </button>
+                                    <button onClick={() => handleDownloadPoster(res)} disabled={loadingPosterId === res.id} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3 bg-[#111111] text-white hover:bg-[#7A0C1E] font-black uppercase text-xs transition-colors disabled:opacity-50">
+                                      {loadingPosterId === res.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} strokeWidth={3} />} Poster
+                                    </button>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="flex gap-2 sm:gap-3 w-full sm:w-auto mt-2 sm:mt-0">
-                                <button onClick={() => handleShare(res)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 border-[2px] border-[#111111] hover:bg-[#111111] hover:text-white font-black uppercase text-[10px] sm:text-xs transition-colors">
-                                  <Share2 size={14} strokeWidth={3} /> Share
-                                </button>
-                                <button onClick={() => handleDownloadPoster(res)} disabled={loadingPosterId === res.id} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-[#7A0C1E] text-white border-[2px] border-[#111111] hover:bg-[#111111] font-black uppercase text-[10px] sm:text-xs transition-colors disabled:opacity-50">
-                                  {loadingPosterId === res.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} strokeWidth={3} />} Poster
-                                </button>
-                              </div>
+                              ))}
                             </div>
-                          ))}
                           </div>
                         )}
                       </div>
