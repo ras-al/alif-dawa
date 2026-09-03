@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2, BookOpen, Shield } from 'lucide-react';
+import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2, BookOpen, Shield, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../../api/client';
 import { usePosterGenerator } from '../../components/ResultPosterGenerator';
 
@@ -26,7 +26,12 @@ const FestHome = () => {
   const [results, setResults] = useState<Result[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardTeam[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({});
+
+  const toggleEvent = (title: string) => {
+    setExpandedEvents(prev => ({ ...prev, [title]: !prev[title] }));
+  };
+
   const { generatePoster, loadingPosterId } = usePosterGenerator();
 
   useEffect(() => {
@@ -328,16 +333,24 @@ const FestHome = () => {
                     }, {} as Record<string, { title: string, category: string, results: Result[] }>);
 
                     return Object.values(grouped).map((group, idx) => (
-                      <div key={idx} className="bg-white border-[3px] border-[#111111] shadow-[6px_6px_0_#111111] sm:shadow-[8px_8px_0_#111111] overflow-hidden">
-                        <div className="bg-[#111111] text-white p-4 sm:p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div key={idx} className="bg-white border-[3px] border-[#111111] shadow-[6px_6px_0_#111111] sm:shadow-[8px_8px_0_#111111] overflow-hidden mb-6">
+                        <button 
+                          onClick={() => toggleEvent(group.title)}
+                          className="w-full bg-[#111111] text-white p-4 sm:p-5 flex flex-row justify-between items-center gap-4 cursor-pointer hover:bg-[#222] transition-colors text-left"
+                        >
                           <div>
                             <h3 className="text-xl sm:text-2xl font-black uppercase tracking-wider">{group.title}</h3>
                             <div className="inline-block px-2 py-0.5 bg-white text-[#111111] font-bold text-[10px] sm:text-xs uppercase tracking-widest mt-1.5 sm:mt-2">
                               {group.category}
                             </div>
                           </div>
-                        </div>
-                        <div className="p-0">
+                          <div className="text-white">
+                            {expandedEvents[group.title] ? <ChevronUp size={28} strokeWidth={3} /> : <ChevronDown size={28} strokeWidth={3} />}
+                          </div>
+                        </button>
+                        
+                        {expandedEvents[group.title] && (
+                          <div className="p-0">
                           {group.results.map((res, rIdx) => (
                             <div key={res.id} className={`p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${rIdx !== group.results.length - 1 ? 'border-b-[3px] border-[#111111]' : ''} ${res.position === 1 ? 'bg-[#F2F0E9]' : 'bg-white'}`}>
                               <div className="flex items-center gap-4 sm:gap-6">
@@ -364,7 +377,8 @@ const FestHome = () => {
                               </div>
                             </div>
                           ))}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     ));
                   })()}
