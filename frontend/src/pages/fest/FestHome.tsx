@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2, BookOpen, Shield, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../../api/client';
 import { usePosterGenerator } from '../../components/ResultPosterGenerator';
+import html2canvas from 'html2canvas';
 
 interface Result {
   id: number;
@@ -27,9 +28,62 @@ const FestHome = () => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({});
+  const [downloadingEvent, setDownloadingEvent] = useState<string | null>(null);
 
   const toggleEvent = (title: string) => {
     setExpandedEvents(prev => ({ ...prev, [title]: !prev[title] }));
+  };
+
+  const downloadGroupImage = async (e: React.MouseEvent, title: string) => {
+    e.stopPropagation(); // prevent accordion toggle
+    
+    // Ensure it's expanded first
+    setExpandedEvents(prev => ({ ...prev, [title]: true }));
+    setDownloadingEvent(title);
+    
+    // Wait for DOM to render the expanded content
+    setTimeout(async () => {
+      try {
+        const el = document.getElementById(`group-results-${title.replace(/\\s+/g, '-')}`);
+        if (!el) return;
+        const canvas = await html2canvas(el, { backgroundColor: '#F2F0E9', scale: 2 });
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${title.replace(/\\s+/g, '_')}_Results.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          setDownloadingEvent(null);
+        }, 'image/png');
+      } catch (err) {
+        console.error('Failed to download group image', err);
+        setDownloadingEvent(null);
+      }
+    }, 150);
+  };
+
+  const handleShareGroup = async (e: React.MouseEvent, group: any) => {
+    e.stopPropagation();
+    const text = `🏆 Results for ${group.title} at Alif Dawa Fest 🏆\n` + 
+                 group.results.filter((r: Result) => r.position <= 3).map((r: Result) => `${r.position === 1 ? '🥇' : r.position === 2 ? '🥈' : '🥉'} ${r.team_name} (${r.points} PTS) - ${r.student_name}`).join('\n');
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Alif Dawa Fest - ${group.title} Results`,
+          text,
+          url: window.location.href
+        });
+      } catch (err) {
+        console.log('Error sharing', err);
+      }
+    } else {
+      navigator.clipboard.writeText(text);
+      alert('Results copied to clipboard!');
+    }
   };
 
   const { generatePoster, loadingPosterId } = usePosterGenerator();
@@ -344,13 +398,21 @@ const FestHome = () => {
                               {group.category}
                             </div>
                           </div>
-                          <div className="text-white">
-                            {expandedEvents[group.title] ? <ChevronUp size={28} strokeWidth={3} /> : <ChevronDown size={28} strokeWidth={3} />}
+                          <div className="flex items-center gap-3">
+                            <button onClick={(e) => handleShareGroup(e, group)} className="flex items-center justify-center w-10 h-10 bg-white text-[#111111] hover:bg-slate-200 border-[2px] border-[#111111] shadow-[2px_2px_0_#111111] transition-all">
+                              <Share2 size={18} strokeWidth={2.5} />
+                            </button>
+                            <button onClick={(e) => downloadGroupImage(e, group.title)} disabled={downloadingEvent === group.title} className="flex items-center justify-center w-10 h-10 bg-[#7A0C1E] text-white hover:bg-[#5a0915] border-[2px] border-[#111111] shadow-[2px_2px_0_#111111] transition-all disabled:opacity-50">
+                              {downloadingEvent === group.title ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} strokeWidth={2.5} />}
+                            </button>
+                            <div className="text-white ml-2">
+                              {expandedEvents[group.title] ? <ChevronUp size={28} strokeWidth={3} /> : <ChevronDown size={28} strokeWidth={3} />}
+                            </div>
                           </div>
                         </button>
                         
                         {expandedEvents[group.title] && (
-                          <div className="p-4 sm:p-6 bg-[#F2F0E9]">
+                          <div id={`group-results-${group.title.replace(/\\s+/g, '-')}`} className="p-4 sm:p-6 bg-[#F2F0E9]">
                             <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                               {group.results.filter(r => r.position <= 3).map((res) => (
                                 <div key={res.id} className="bg-white border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] flex flex-col h-full">
@@ -365,14 +427,6 @@ const FestHome = () => {
                                   <div className="p-4 flex-grow">
                                     <h4 className="font-black text-xl uppercase tracking-wider mb-1">{res.team_name}</h4>
                                     <p className="text-sm font-bold text-slate-600 uppercase leading-snug">{res.student_name}</p>
-                                  </div>
-                                  <div className="flex border-t-[3px] border-[#111111] mt-auto">
-                                    <button onClick={() => handleShare(res)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3 border-r-[3px] border-[#111111] hover:bg-[#F2F0E9] font-black uppercase text-xs transition-colors">
-                                      <Share2 size={14} strokeWidth={3} /> Share
-                                    </button>
-                                    <button onClick={() => handleDownloadPoster(res)} disabled={loadingPosterId === res.id} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-3 bg-[#111111] text-white hover:bg-[#7A0C1E] font-black uppercase text-xs transition-colors disabled:opacity-50">
-                                      {loadingPosterId === res.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} strokeWidth={3} />} Poster
-                                    </button>
                                   </div>
                                 </div>
                               ))}
