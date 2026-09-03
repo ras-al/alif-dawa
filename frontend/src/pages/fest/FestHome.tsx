@@ -324,7 +324,7 @@ const FestHome = () => {
                             #{res.position}
                           </span>
                           <span className="font-black px-2 py-1 sm:px-3 sm:py-1.5 bg-white border-[2px] sm:border-[3px] border-[#111111] uppercase tracking-widest text-xs sm:text-sm shadow-[2px_2px_0_#111111]">
-                            {res.team_name}
+                            {res.team_name} • {res.points} PTS
                           </span>
                         </div>
                       </div>
