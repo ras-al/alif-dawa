@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2, BookOpen, Shield, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../../api/client';
-import { usePosterGenerator } from '../../components/ResultPosterGenerator';
 import html2canvas from 'html2canvas';
 
 interface Result {
@@ -86,7 +85,6 @@ const FestHome = () => {
     }
   };
 
-  const { generatePoster, loadingPosterId } = usePosterGenerator();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -108,15 +106,9 @@ const FestHome = () => {
     return () => clearInterval(interval);
   }, [eventType]);
 
-  const handleShare = (result: Result) => {
-    const text = `Fest Result Published!\n\nEvent: ${result.program_title} (${result.category})\nWinner: ${result.student_name} (${result.team_name})\nPosition: ${result.position}\n\nCongratulations!`;
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
-  };
 
-  const handleDownloadPoster = (result: Result & { id: number }) => {
-    generatePoster(result);
-  };
+
+
 
   return (
     <div className="min-h-screen bg-[#F2F0E9] text-[#111111] font-sans selection:bg-[#7A0C1E] selection:text-[#F2F0E9]">
