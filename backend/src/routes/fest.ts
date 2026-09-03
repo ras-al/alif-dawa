@@ -831,9 +831,9 @@ router.post('/green-room/verify', authorize('green_room', 'admin'), async (req, 
     await pool.query('BEGIN');
     for (const r of results) {
         await pool.query(
-            `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points)
-             VALUES ($1, $2, $3, $4)
-             ON CONFLICT (fest_program_id, fest_registration_id) DO UPDATE SET position = EXCLUDED.position, points = EXCLUDED.points`,
+            `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points, published_at)
+             VALUES ($1, $2, $3, $4, NULL)
+             ON CONFLICT (fest_program_id, fest_registration_id) DO UPDATE SET position = EXCLUDED.position, points = EXCLUDED.points, published_at = NULL`,
             [program_id, r.registration_id, r.position, r.points]
         );
     }
