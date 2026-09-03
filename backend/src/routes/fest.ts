@@ -866,12 +866,25 @@ router.get('/announcer/pending', authorize('announcer', 'admin'), async (req, re
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT id, title, category 
-       FROM fest_programs 
-       WHERE status = 'completed' AND event_type = $1 
-       AND EXISTS (SELECT 1 FROM fest_results WHERE fest_program_id = fest_programs.id)
+      `SELECT p.id, p.title, p.category, 
+        (
+          SELECT json_agg(json_build_object(
+            'position', r.position,
+            'student_name', s.name,
+            'team_name', t.name
+          ) ORDER BY r.position ASC)
+          FROM fest_results r
+          JOIN fest_registrations reg ON r.fest_registration_id = reg.id
+          JOIN fest_participants part ON reg.fest_participant_id = part.id
+          JOIN students s ON part.student_id = s.id
+          JOIN fest_teams t ON part.fest_team_id = t.id
+          WHERE r.fest_program_id = p.id
+        ) as winners
+       FROM fest_programs p 
+       WHERE p.status = 'completed' AND p.event_type = $1 
+       AND EXISTS (SELECT 1 FROM fest_results WHERE fest_program_id = p.id)
        AND NOT EXISTS (
-         SELECT 1 FROM fest_results WHERE fest_program_id = fest_programs.id AND published_at IS NOT NULL
+         SELECT 1 FROM fest_results WHERE fest_program_id = p.id AND published_at IS NOT NULL
        )`, [eventType]
     );
     res.json(rows);
