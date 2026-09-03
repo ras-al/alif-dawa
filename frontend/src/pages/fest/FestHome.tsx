@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2, BookOpen, Shield, ChevronDown, ChevronUp } from 'lucide-react';
+import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2, BookOpen, Shield, ChevronDown, ChevronUp, X } from 'lucide-react';
 import api from '../../api/client';
 import html2canvas from 'html2canvas';
 
@@ -28,6 +28,8 @@ const FestHome = () => {
   const [loading, setLoading] = useState(true);
   const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({});
   const [downloadingEvent, setDownloadingEvent] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState<string | null>(null);
 
   const toggleEvent = (title: string) => {
     setExpandedEvents(prev => ({ ...prev, [title]: !prev[title] }));
@@ -46,18 +48,10 @@ const FestHome = () => {
         const el = document.getElementById(`group-results-${title.replace(/\\s+/g, '-')}`);
         if (!el) return;
         const canvas = await html2canvas(el, { backgroundColor: '#F2F0E9', scale: 2 });
-        canvas.toBlob((blob) => {
-          if (!blob) return;
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `${title.replace(/\\s+/g, '_')}_Results.png`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          setDownloadingEvent(null);
-        }, 'image/png');
+        const url = canvas.toDataURL('image/png');
+        setPreviewImage(url);
+        setPreviewTitle(title);
+        setDownloadingEvent(null);
       } catch (err) {
         console.error('Failed to download group image', err);
         setDownloadingEvent(null);
@@ -417,8 +411,8 @@ const FestHome = () => {
                                     </span>
                                   </div>
                                   <div className="p-4 flex-grow">
-                                    <h4 className="font-black text-xl uppercase tracking-wider mb-1">{res.team_name}</h4>
-                                    <p className="text-sm font-bold text-slate-600 uppercase leading-snug">{res.student_name}</p>
+                                    <h4 className="font-black text-xl uppercase tracking-wider mb-1">{res.student_name}</h4>
+                                    <p className="text-sm font-bold text-[#7A0C1E] uppercase leading-snug">{res.team_name}</p>
                                   </div>
                                 </div>
                               ))}
@@ -520,6 +514,44 @@ const FestHome = () => {
           </div>
         </div>
       </footer>
+
+      {/* Preview Modal */}
+      {previewImage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 animate-in fade-in duration-200">
+          <div className="bg-[#F2F0E9] p-4 sm:p-6 border-[3px] border-[#111111] shadow-[8px_8px_0_#111111] max-w-4xl w-full max-h-[95vh] flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl sm:text-2xl font-black uppercase tracking-wider">Preview Generated Poster</h3>
+              <button onClick={() => { setPreviewImage(null); setPreviewTitle(null); }} className="text-[#111111] hover:text-[#7A0C1E] transition-colors p-1 bg-white border-[2px] border-[#111111]">
+                <X size={24} strokeWidth={3} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto border-[3px] border-[#111111] mb-6 bg-white flex items-center justify-center p-4">
+              <img src={previewImage} alt="Preview" className="w-full h-auto object-contain max-h-[60vh] shadow-lg" />
+            </div>
+            <div className="flex justify-end gap-4">
+              <button 
+                onClick={() => { setPreviewImage(null); setPreviewTitle(null); }}
+                className="px-4 py-3 sm:px-6 bg-white text-[#111111] font-black uppercase tracking-wider border-[3px] border-[#111111] hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = previewImage;
+                  a.download = `${(previewTitle || 'Result').replace(/\\s+/g, '_')}_Results.png`;
+                  a.click();
+                  setPreviewImage(null);
+                  setPreviewTitle(null);
+                }}
+                className="flex items-center gap-2 px-4 py-3 sm:px-8 bg-[#7A0C1E] text-white font-black uppercase tracking-wider border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+              >
+                <Download size={20} strokeWidth={3} /> Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
