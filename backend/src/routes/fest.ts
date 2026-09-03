@@ -895,6 +895,38 @@ router.post('/announcer/publish', authorize('announcer', 'admin'), async (req: A
   }
 });
 
+router.get('/announcer/published', authorize('announcer', 'admin'), async (req, res) => {
+  try {
+    const eventType = req.query.event_type || 'MAIN';
+    const { rows } = await pool.query(
+      `SELECT DISTINCT p.id, p.title, p.category, 
+        (SELECT MAX(published_at) FROM fest_results r WHERE r.fest_program_id = p.id) as published_at
+       FROM fest_programs p
+       JOIN fest_results r ON p.id = r.fest_program_id
+       WHERE r.published_at IS NOT NULL AND p.event_type = $1
+       ORDER BY published_at DESC`, [eventType]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/announcer/undo-publish', authorize('announcer', 'admin'), async (req: AuthRequest, res) => {
+  const { program_id } = req.body;
+  try {
+    await pool.query(
+      `UPDATE fest_results SET published_at = NULL, published_by = NULL WHERE fest_program_id = $1`,
+      [program_id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Stage Admin Routes
 router.get('/stage-admin/programs/:id/participants', authorize('stage_admin', 'admin'), async (req: AuthRequest, res) => {
   try {
