@@ -81,8 +81,8 @@ router.get('/public/results', async (req, res) => {
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT r.id, r.position, r.points, p.title as program_title, p.category, 
-              t.name as team_name, s.name as student_name
+      `SELECT MAX(r.id) as id, r.position, MAX(r.points) as points, p.title as program_title, p.category, 
+              t.name as team_name, string_agg(s.name, ', ') as student_name
        FROM fest_results r
        JOIN fest_programs p ON r.fest_program_id = p.id
        JOIN fest_registrations reg ON r.fest_registration_id = reg.id
@@ -90,6 +90,7 @@ router.get('/public/results', async (req, res) => {
        JOIN students s ON part.student_id = s.id
        JOIN fest_teams t ON part.fest_team_id = t.id
        WHERE r.published_at IS NOT NULL AND p.event_type = $1
+       GROUP BY p.id, r.position, p.title, p.category, t.name
        ORDER BY p.id ASC, r.position ASC`,
       [eventType]
     );
@@ -869,17 +870,21 @@ router.get('/announcer/pending', authorize('announcer', 'admin'), async (req, re
       `SELECT p.id, p.title, p.category, 
         (
           SELECT json_agg(json_build_object(
-            'position', r.position,
-            'points', r.points,
-            'student_name', s.name,
-            'team_name', t.name
-          ) ORDER BY r.position ASC)
-          FROM fest_results r
-          JOIN fest_registrations reg ON r.fest_registration_id = reg.id
-          JOIN fest_participants part ON reg.fest_participant_id = part.id
-          JOIN students s ON part.student_id = s.id
-          JOIN fest_teams t ON part.fest_team_id = t.id
-          WHERE r.fest_program_id = p.id
+            'position', g.position,
+            'points', g.points,
+            'student_name', g.student_name,
+            'team_name', g.team_name
+          ) ORDER BY g.position ASC)
+          FROM (
+            SELECT r.position, MAX(r.points) as points, string_agg(s.name, ', ') as student_name, t.name as team_name
+            FROM fest_results r
+            JOIN fest_registrations reg ON r.fest_registration_id = reg.id
+            JOIN fest_participants part ON reg.fest_participant_id = part.id
+            JOIN students s ON part.student_id = s.id
+            JOIN fest_teams t ON part.fest_team_id = t.id
+            WHERE r.fest_program_id = p.id
+            GROUP BY r.position, t.name
+          ) g
         ) as winners
        FROM fest_programs p 
        WHERE p.status = 'completed' AND p.event_type = $1 
