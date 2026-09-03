@@ -49,7 +49,8 @@ export function usePosterGenerator() {
       await new Promise((resolve, reject) => {
         img.onload = resolve;
         img.onerror = reject;
-        img.src = `http://localhost:5000${template.image_url}`;
+        const apiBase = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+        img.src = `${apiBase}${template.image_url}`;
       });
 
       canvas.width = img.width;

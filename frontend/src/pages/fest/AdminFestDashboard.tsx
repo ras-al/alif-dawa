@@ -1203,7 +1203,7 @@ export default function AdminFestDashboard() {
                         }}
                       >
                         <img 
-                          src={posterFile ? URL.createObjectURL(posterFile) : `http://localhost:5000${posterTemplate.image_url}`}
+                          src={posterFile ? URL.createObjectURL(posterFile) : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${posterTemplate.image_url}`}
                           alt="Poster Template"
                           className="w-full h-full absolute inset-0 shadow-lg border border-slate-300"
                           onLoad={(e) => setPosterImgSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })}
@@ -1297,7 +1297,7 @@ export default function AdminFestDashboard() {
                           }}
                         >
                           <img 
-                            src={cardFile ? URL.createObjectURL(cardFile) : `http://localhost:5000${cardTemplate.image_url}`}
+                            src={cardFile ? URL.createObjectURL(cardFile) : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${cardTemplate.image_url}`}
                             alt="Card Template"
                             className="w-full h-full absolute inset-0 shadow-lg border border-slate-300"
                             onLoad={(e) => setCardImgSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })}
