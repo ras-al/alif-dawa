@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2, BookOpen, Shield } from 'lucide-react';
-import axios from 'axios';
+import api from '../../api/client';
 import { usePosterGenerator } from '../../components/ResultPosterGenerator';
 
 interface Result {
@@ -33,8 +33,8 @@ const FestHome = () => {
     const fetchData = async () => {
       try {
         const [resResults, resLeaderboard] = await Promise.all([
-          axios.get(`http://localhost:5000/api/fest/public/results?event_type=${eventType}`),
-          axios.get(`http://localhost:5000/api/fest/public/leaderboard?event_type=${eventType}`)
+          api.get(`/fest/public/results?event_type=${eventType}`),
+          api.get(`/fest/public/leaderboard?event_type=${eventType}`)
         ]);
         setResults(resResults.data);
         setLeaderboard(resLeaderboard.data);

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../../api/client';
 
 const ParticipantCodePicker = () => {
   const [chestNumber, setChestNumber] = useState('');
@@ -17,7 +17,7 @@ const ParticipantCodePicker = () => {
     // Simulate slot machine effect
     setTimeout(async () => {
       try {
-        const response = await axios.post('http://localhost:5000/api/fest/public/pick-code', {
+        const response = await api.post('/fest/public/pick-code', {
           chest_number: chestNumber,
           program_id: parseInt(programId, 10),
         });
