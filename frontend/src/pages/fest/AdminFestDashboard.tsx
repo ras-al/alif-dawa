@@ -59,7 +59,8 @@ export default function AdminFestDashboard() {
     program_title: { x: 50, y: 120, fontSize: 36, color: '#333333', visible: true },
     category: { x: 50, y: 170, fontSize: 24, color: '#666666', visible: true },
     position: { x: 50, y: 220, fontSize: 64, color: '#FFD700', visible: true },
-    team_name: { x: 50, y: 300, fontSize: 32, color: '#14532D', visible: true }
+    team_name: { x: 50, y: 300, fontSize: 32, color: '#14532D', visible: true },
+    event_number: { x: 50, y: 350, fontSize: 32, color: '#000000', visible: true }
   });
   const [posterImgSize, setPosterImgSize] = useState({ width: 1080, height: 1080 });
 
