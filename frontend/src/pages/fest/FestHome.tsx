@@ -308,51 +308,66 @@ const FestHome = () => {
                   ))}
                 </div>
 
-                <div className="grid gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-3">
-                  {results.filter(r => categoryFilter === 'All' || r.category === categoryFilter).map((res) => (
-                    <div key={res.id} className="bg-white border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] sm:shadow-[8px_8px_0_#111111] flex flex-col group relative">
-                      
-                      {res.position === 1 && (
-                        <div className="absolute top-0 right-0 bg-[#7A0C1E] text-white font-black px-3 py-1 sm:px-4 sm:py-1 text-xs sm:text-base border-l-[3px] border-b-[3px] border-[#111111]">
-                          WINNER
+                <div className="space-y-8 sm:space-y-12">
+                  {(() => {
+                    const filtered = results.filter(r => categoryFilter === 'All' || r.category === categoryFilter);
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="col-span-full text-center py-24 bg-white border-[3px] border-[#111111] shadow-[8px_8px_0_#111111]">
+                          <p className="font-black text-xl uppercase">No results found{categoryFilter !== 'All' ? ` for ${categoryFilter} category` : ''}.</p>
                         </div>
-                      )}
+                      );
+                    }
 
-                      <div className="p-4 sm:p-6 border-b-[3px] border-[#111111] bg-[#F2F0E9]">
-                        <div className="flex justify-between items-start">
-                          <span className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-[#111111] text-white font-black text-2xl sm:text-3xl border-[3px] border-[#111111] shadow-[2px_2px_0_#7A0C1E] sm:shadow-[4px_4px_0_#7A0C1E]">
-                            #{res.position}
-                          </span>
-                          <span className="font-black px-2 py-1 sm:px-3 sm:py-1.5 bg-white border-[2px] sm:border-[3px] border-[#111111] uppercase tracking-widest text-xs sm:text-sm shadow-[2px_2px_0_#111111]">
-                            {res.team_name} • {res.points} PTS
-                          </span>
+                    // Group by program_title + category
+                    const grouped = filtered.reduce((acc, res) => {
+                      const key = `${res.program_title} - ${res.category}`;
+                      if (!acc[key]) acc[key] = { title: res.program_title, category: res.category, results: [] };
+                      acc[key].results.push(res);
+                      return acc;
+                    }, {} as Record<string, { title: string, category: string, results: Result[] }>);
+
+                    return Object.values(grouped).map((group, idx) => (
+                      <div key={idx} className="bg-white border-[3px] border-[#111111] shadow-[6px_6px_0_#111111] sm:shadow-[8px_8px_0_#111111] overflow-hidden">
+                        <div className="bg-[#111111] text-white p-4 sm:p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                          <div>
+                            <h3 className="text-xl sm:text-2xl font-black uppercase tracking-wider">{group.title}</h3>
+                            <div className="inline-block px-2 py-0.5 bg-white text-[#111111] font-bold text-[10px] sm:text-xs uppercase tracking-widest mt-1.5 sm:mt-2">
+                              {group.category}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-0">
+                          {group.results.map((res, rIdx) => (
+                            <div key={res.id} className={`p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${rIdx !== group.results.length - 1 ? 'border-b-[3px] border-[#111111]' : ''} ${res.position === 1 ? 'bg-[#F2F0E9]' : 'bg-white'}`}>
+                              <div className="flex items-center gap-4 sm:gap-6">
+                                <span className={`inline-flex flex-shrink-0 items-center justify-center w-10 h-10 sm:w-14 sm:h-14 font-black text-lg sm:text-2xl border-[3px] border-[#111111] ${res.position === 1 ? 'bg-[#7A0C1E] text-white shadow-[3px_3px_0_#111111]' : 'bg-white text-[#111111] shadow-[3px_3px_0_#7A0C1E]'}`}>
+                                  #{res.position}
+                                </span>
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                                    <span className="font-black text-base sm:text-xl uppercase tracking-wider">{res.team_name}</span>
+                                    <span className="font-bold px-1.5 py-0.5 bg-[#111111] text-white text-[10px] sm:text-xs uppercase tracking-widest">
+                                      {res.points} PTS
+                                    </span>
+                                  </div>
+                                  <p className="text-xs sm:text-sm font-bold text-slate-600 uppercase leading-snug max-w-[200px] sm:max-w-md">{res.student_name}</p>
+                                </div>
+                              </div>
+                              <div className="flex gap-2 sm:gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+                                <button onClick={() => handleShare(res)} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 border-[2px] border-[#111111] hover:bg-[#111111] hover:text-white font-black uppercase text-[10px] sm:text-xs transition-colors">
+                                  <Share2 size={14} strokeWidth={3} /> Share
+                                </button>
+                                <button onClick={() => handleDownloadPoster(res)} disabled={loadingPosterId === res.id} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-[#7A0C1E] text-white border-[2px] border-[#111111] hover:bg-[#111111] font-black uppercase text-[10px] sm:text-xs transition-colors disabled:opacity-50">
+                                  {loadingPosterId === res.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} strokeWidth={3} />} Poster
+                                </button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      
-                      <div className="p-4 sm:p-6 flex-grow bg-white">
-                        <h3 className="text-xl sm:text-2xl font-black uppercase mb-1 sm:mb-2 leading-tight">{res.student_name}</h3>
-                        <p className="text-base sm:text-lg font-bold text-[#7A0C1E] mb-3 sm:mb-4">{res.program_title}</p>
-                        <div className="inline-block px-2 py-1 sm:px-3 sm:py-1 bg-[#111111] text-white font-bold text-[10px] sm:text-xs uppercase tracking-wider">
-                          {res.category}
-                        </div>
-                      </div>
-                      
-                      <div className="flex border-t-[3px] border-[#111111]">
-                        <button onClick={() => handleShare(res)} className="flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 px-2 sm:py-4 sm:px-4 bg-white hover:bg-[#F2F0E9] border-r-[3px] border-[#111111] font-black uppercase text-xs sm:text-sm transition-colors">
-                          <Share2 size={16} strokeWidth={3} className="sm:w-[18px] sm:h-[18px]" /> Share
-                        </button>
-                        <button onClick={() => handleDownloadPoster(res)} disabled={loadingPosterId === res.id} className="flex-1 flex items-center justify-center gap-1 sm:gap-2 py-3 px-2 sm:py-4 sm:px-4 bg-[#111111] text-white hover:bg-[#7A0C1E] font-black uppercase text-xs sm:text-sm transition-colors disabled:opacity-50">
-                          {loadingPosterId === res.id ? <Loader2 size={16} className="animate-spin sm:w-[18px] sm:h-[18px]" /> : <Download size={16} strokeWidth={3} className="sm:w-[18px] sm:h-[18px]" />} Poster
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {results.filter(r => categoryFilter === 'All' || r.category === categoryFilter).length === 0 && (
-                    <div className="col-span-full text-center py-24 bg-white border-[3px] border-[#111111] shadow-[8px_8px_0_#111111]">
-                      <p className="font-black text-xl uppercase">No results found{categoryFilter !== 'All' ? ` for ${categoryFilter} category` : ''}.</p>
-                    </div>
-                  )}
+                    ));
+                  })()}
                 </div>
               </div>
             )}
