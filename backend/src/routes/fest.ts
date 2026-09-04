@@ -351,18 +351,25 @@ router.post('/admin/assign-judge', authorize('admin'), async (req: AuthRequest, 
     if (!Array.isArray(judge_names)) {
       return res.status(400).json({ error: 'judge_names must be an array' });
     }
-    await pool.query('BEGIN');
-    await pool.query(`DELETE FROM fest_program_judges WHERE fest_program_id = $1`, [fest_program_id]);
-    for (const name of judge_names) {
-      await pool.query(
-        `INSERT INTO fest_program_judges (fest_program_id, judge_name) VALUES ($1, $2)`,
-        [fest_program_id, name]
-      );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM fest_program_judges WHERE fest_program_id = $1`, [fest_program_id]);
+      for (const name of judge_names) {
+        await client.query(
+          `INSERT INTO fest_program_judges (fest_program_id, judge_name) VALUES ($1, $2)`,
+          [fest_program_id, name]
+        );
+      }
+      await client.query('COMMIT');
+      res.json({ success: true });
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      res.status(500).json({ error: err.message || 'Server error' });
+    } finally {
+      client.release();
     }
-    await pool.query('COMMIT');
-    res.json({ success: true });
   } catch (err: any) {
-    await pool.query('ROLLBACK');
     res.status(500).json({ error: err.message || 'Server error' });
   }
 });
@@ -558,35 +565,42 @@ router.get('/admin/participants', authorize('admin'), async (req: AuthRequest, r
 router.post('/admin/participants', authorize('admin'), async (req: AuthRequest, res) => {
   const { student_id, fest_team_id } = req.body;
   try {
-    await pool.query('BEGIN');
-    
-    // Get next chest number and event_type
-    const teamRes = await pool.query(`SELECT chest_number_start, event_type FROM fest_teams WHERE id = $1`, [fest_team_id]);
-    if (teamRes.rows.length === 0) throw new Error('Team not found');
-    const start = teamRes.rows[0].chest_number_start;
-    const eventType = teamRes.rows[0].event_type || 'MAIN';
-    
-    // Check if student is already a participant in this event
-    const exist = await pool.query(`SELECT id FROM fest_participants WHERE student_id = $1 AND event_type = $2`, [student_id, eventType]);
-    if (exist.rows.length > 0) {
-      throw new Error('Student is already registered as a participant in this event.');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Get next chest number and event_type
+      const teamRes = await client.query(`SELECT chest_number_start, event_type FROM fest_teams WHERE id = $1`, [fest_team_id]);
+      if (teamRes.rows.length === 0) throw new Error('Team not found');
+      const start = teamRes.rows[0].chest_number_start;
+      const eventType = teamRes.rows[0].event_type || 'MAIN';
+      
+      // Check if student is already a participant in this event
+      const exist = await client.query(`SELECT id FROM fest_participants WHERE student_id = $1 AND event_type = $2`, [student_id, eventType]);
+      if (exist.rows.length > 0) {
+        throw new Error('Student is already registered as a participant in this event.');
+      }
+      
+      const maxRes = await client.query(`SELECT MAX(chest_number) as max_cn FROM fest_participants WHERE fest_team_id = $1`, [fest_team_id]);
+      let nextCn = start;
+      if (maxRes.rows[0].max_cn && maxRes.rows[0].max_cn >= start) {
+        nextCn = maxRes.rows[0].max_cn + 1;
+      }
+      
+      const { rows } = await client.query(
+        `INSERT INTO fest_participants (student_id, fest_team_id, chest_number, event_type) VALUES ($1, $2, $3, $4) RETURNING *`,
+        [student_id, fest_team_id, nextCn, eventType]
+      );
+      await client.query('COMMIT');
+      res.json(rows[0]);
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: err.message || 'Server error' });
+    } finally {
+      client.release();
     }
-    
-    const maxRes = await pool.query(`SELECT MAX(chest_number) as max_cn FROM fest_participants WHERE fest_team_id = $1`, [fest_team_id]);
-    let nextCn = start;
-    if (maxRes.rows[0].max_cn && maxRes.rows[0].max_cn >= start) {
-      nextCn = maxRes.rows[0].max_cn + 1;
-    }
-    
-    const { rows } = await pool.query(
-      `INSERT INTO fest_participants (student_id, fest_team_id, chest_number, event_type) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [student_id, fest_team_id, nextCn, eventType]
-    );
-    await pool.query('COMMIT');
-    res.json(rows[0]);
   } catch (err: any) {
-    await pool.query('ROLLBACK');
-    res.status(400).json({ error: err.message || 'Server error' });
+    res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 
@@ -829,20 +843,28 @@ router.post('/green-room/verify', authorize('green_room', 'admin'), async (req, 
   const { program_id, results } = req.body;
   // results should be array of { registration_id, position, points, grade }
   try {
-    await pool.query('BEGIN');
-    for (const r of results) {
-        await pool.query(
-            `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points, grade, published_at)
-             VALUES ($1, $2, $3, $4, $5, NULL)
-             ON CONFLICT (fest_program_id, fest_registration_id) DO UPDATE SET position = EXCLUDED.position, points = EXCLUDED.points, grade = EXCLUDED.grade, published_at = NULL`,
-            [program_id, r.registration_id, r.position, r.points, r.grade]
-        );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const r of results) {
+          await client.query(
+              `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points, grade, published_at)
+               VALUES ($1, $2, $3, $4, $5, NULL)
+               ON CONFLICT (fest_program_id, fest_registration_id) DO UPDATE SET position = EXCLUDED.position, points = EXCLUDED.points, grade = EXCLUDED.grade, published_at = NULL`,
+              [program_id, r.registration_id, r.position, r.points, r.grade]
+          );
+      }
+      await client.query(`UPDATE fest_programs SET status = 'completed' WHERE id = $1`, [program_id]);
+      await client.query('COMMIT');
+      res.json({ success: true });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error(err);
+      res.status(500).json({ error: 'Server error' });
+    } finally {
+      client.release();
     }
-    await pool.query(`UPDATE fest_programs SET status = 'completed' WHERE id = $1`, [program_id]);
-    await pool.query('COMMIT');
-    res.json({ success: true });
   } catch (err) {
-    await pool.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
@@ -850,13 +872,21 @@ router.post('/green-room/verify', authorize('green_room', 'admin'), async (req, 
 
 router.post('/green-room/programs/:programId/undo-verify', authorize('green_room', 'admin'), async (req, res) => {
   try {
-    await pool.query('BEGIN');
-    await pool.query(`DELETE FROM fest_results WHERE fest_program_id = $1`, [req.params.programId]);
-    await pool.query(`UPDATE fest_programs SET status = 'live' WHERE id = $1`, [req.params.programId]);
-    await pool.query('COMMIT');
-    res.json({ success: true });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM fest_results WHERE fest_program_id = $1`, [req.params.programId]);
+      await client.query(`UPDATE fest_programs SET status = 'live' WHERE id = $1`, [req.params.programId]);
+      await client.query('COMMIT');
+      res.json({ success: true });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error(err);
+      res.status(500).json({ error: 'Server error' });
+    } finally {
+      client.release();
+    }
   } catch (err) {
-    await pool.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
@@ -979,17 +1009,24 @@ router.post('/stage-admin/programs/:id/mark-attendance', authorize('stage_admin'
   const { present_ids } = req.body; // array of registration_ids that are present
   const programId = req.params.id;
   try {
-    await pool.query('BEGIN');
-    // Reset all to absent first
-    await pool.query(`UPDATE fest_registrations SET is_present = false WHERE fest_program_id = $1`, [programId]);
-    // Mark provided ones as present
-    if (present_ids && present_ids.length > 0) {
-      await pool.query(`UPDATE fest_registrations SET is_present = true WHERE fest_program_id = $1 AND id = ANY($2::int[])`, [programId, present_ids]);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Reset all to absent first
+      await client.query(`UPDATE fest_registrations SET is_present = false WHERE fest_program_id = $1`, [programId]);
+      // Mark provided ones as present
+      if (present_ids && present_ids.length > 0) {
+        await client.query(`UPDATE fest_registrations SET is_present = true WHERE fest_program_id = $1 AND id = ANY($2::int[])`, [programId, present_ids]);
+      }
+      await client.query('COMMIT');
+      res.json({ success: true, present_count: present_ids?.length || 0 });
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      res.status(500).json({ error: err.message || 'Server error' });
+    } finally {
+      client.release();
     }
-    await pool.query('COMMIT');
-    res.json({ success: true, present_count: present_ids?.length || 0 });
   } catch (err: any) {
-    await pool.query('ROLLBACK');
     res.status(500).json({ error: err.message || 'Server error' });
   }
 });
