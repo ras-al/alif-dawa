@@ -21,6 +21,8 @@ import JudgeDashboard from './pages/fest/JudgeDashboard';
 import GreenRoomDashboard from './pages/fest/GreenRoomDashboard';
 import AnnouncerDashboard from './pages/fest/AnnouncerDashboard';
 import LeaderDashboard from './pages/fest/LeaderDashboard';
+import MediaDashboard from './pages/fest/MediaDashboard';
+import AwardPointDashboard from './pages/fest/AwardPointDashboard';
 import MarkEntry from './pages/admin/MarkEntry';
 import ProgressCard from './pages/admin/ProgressCard';
 import ClassProgressCard from './pages/admin/ClassProgressCard';
@@ -57,6 +59,8 @@ function App() {
       case 'green_room': return '/green-room';
       case 'announcer': return '/announcer';
       case 'leader': return '/leader';
+      case 'media': return '/media';
+      case 'award_point': return '/award-point';
       default: return '/student';
     }
   };
@@ -148,6 +152,12 @@ function App() {
       </Route>
       <Route element={<ProtectedRoute allowedRoles={['leader']} />}>
         <Route element={<FestLayout />}><Route path="/leader" element={<LeaderDashboard />} /></Route>
+      </Route>
+      <Route element={<ProtectedRoute allowedRoles={['media']} />}>
+        <Route element={<FestLayout />}><Route path="/media" element={<MediaDashboard />} /></Route>
+      </Route>
+      <Route element={<ProtectedRoute allowedRoles={['award_point']} />}>
+        <Route element={<FestLayout />}><Route path="/award-point" element={<AwardPointDashboard />} /></Route>
       </Route>
 
       {/* Default redirect */}

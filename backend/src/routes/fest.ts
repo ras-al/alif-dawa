@@ -798,7 +798,7 @@ router.get('/green-room/verified', authorize('green_room', 'admin'), async (req,
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT DISTINCT p.id, p.title, p.category, 
+      `SELECT DISTINCT p.id, p.title, p.category, p.result_sequence_number,
         (SELECT MAX(published_at) FROM fest_results r WHERE r.fest_program_id = p.id) as published_at
        FROM fest_programs p
        JOIN fest_results r ON p.id = r.fest_program_id
@@ -870,6 +870,13 @@ router.post('/green-room/verify', authorize('green_room', 'admin'), async (req, 
               );
           }
       }
+      // Generate sequence number if not exists
+      const seqCheck = await client.query(`SELECT result_sequence_number FROM fest_programs WHERE id = $1`, [program_id]);
+      if (seqCheck.rows.length > 0 && seqCheck.rows[0].result_sequence_number == null) {
+          const nextSeq = await client.query(`SELECT nextval('fest_result_seq') as seq`);
+          await client.query(`UPDATE fest_programs SET result_sequence_number = $1 WHERE id = $2`, [nextSeq.rows[0].seq, program_id]);
+      }
+
       await client.query(`UPDATE fest_programs SET status = 'completed' WHERE id = $1`, [program_id]);
       await client.query('COMMIT');
       res.json({ success: true });
@@ -913,7 +920,7 @@ router.get('/announcer/pending', authorize('announcer', 'admin'), async (req, re
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT p.id, p.title, p.category, 
+      `SELECT p.id, p.title, p.category, p.result_sequence_number,
         (
           SELECT json_agg(json_build_object(
             'position', g.position,
@@ -969,7 +976,7 @@ router.get('/announcer/published', authorize('announcer', 'admin'), async (req, 
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT DISTINCT p.id, p.title, p.category, 
+      `SELECT DISTINCT p.id, p.title, p.category, p.result_sequence_number,
         (SELECT MAX(published_at) FROM fest_results r WHERE r.fest_program_id = p.id) as published_at
        FROM fest_programs p
        JOIN fest_results r ON p.id = r.fest_program_id
@@ -989,6 +996,84 @@ router.post('/announcer/undo-publish', authorize('announcer', 'admin'), async (r
     await pool.query(
       `UPDATE fest_results SET published_at = NULL, published_by = NULL WHERE fest_program_id = $1`,
       [program_id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Media Routes
+router.get('/media/approved', authorize('media', 'admin', 'announcer', 'green_room'), async (req, res) => {
+  try {
+    const eventType = req.query.event_type || 'MAIN';
+    // Returns all approved results (both pending publish and published) for media
+    const { rows } = await pool.query(
+      `SELECT DISTINCT p.id, p.title, p.category, p.result_sequence_number,
+        (
+          SELECT json_agg(json_build_object(
+            'position', g.position,
+            'points', g.points,
+            'student_name', g.student_name,
+            'team_name', g.team_name,
+            'grade', g.grade,
+            'code_letter', g.code_letter
+          ) ORDER BY g.position ASC)
+          FROM (
+            SELECT r.position, MAX(r.points) as points, string_agg(s.name, ', ') as student_name, t.name as team_name, MAX(r.grade) as grade, reg.code_letter
+            FROM fest_results r
+            JOIN fest_registrations reg ON r.fest_registration_id = reg.id
+            JOIN fest_participants part ON reg.fest_participant_id = part.id
+            JOIN students s ON part.student_id = s.id
+            JOIN fest_teams t ON part.fest_team_id = t.id
+            WHERE r.fest_program_id = p.id
+            GROUP BY r.position, t.name, reg.code_letter
+          ) g
+        ) as winners,
+        (SELECT MAX(published_at) FROM fest_results r WHERE r.fest_program_id = p.id) as published_at
+       FROM fest_programs p 
+       WHERE p.status = 'completed' AND p.event_type = $1 
+       AND EXISTS (SELECT 1 FROM fest_results WHERE fest_program_id = p.id)
+       ORDER BY p.result_sequence_number ASC`, [eventType]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Award Point Routes
+router.get('/award-point/published', authorize('award_point', 'admin'), async (req, res) => {
+  try {
+    const eventType = req.query.event_type || 'MAIN';
+    const { rows } = await pool.query(
+      `SELECT p.id as program_id, p.title, p.category, p.result_sequence_number,
+        r.id as result_id, r.position, r.is_awarded,
+        s.name as student_name, t.name as team_name
+       FROM fest_results r
+       JOIN fest_programs p ON r.fest_program_id = p.id
+       JOIN fest_registrations reg ON r.fest_registration_id = reg.id
+       JOIN fest_participants part ON reg.fest_participant_id = part.id
+       JOIN students s ON part.student_id = s.id
+       JOIN fest_teams t ON part.fest_team_id = t.id
+       WHERE r.published_at IS NOT NULL AND p.event_type = $1
+       ORDER BY p.result_sequence_number ASC, r.position ASC`, [eventType]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/award-point/mark-awarded', authorize('award_point', 'admin'), async (req: AuthRequest, res) => {
+  const { result_id, is_awarded } = req.body;
+  try {
+    await pool.query(
+      `UPDATE fest_results SET is_awarded = $1 WHERE id = $2`,
+      [is_awarded, result_id]
     );
     res.json({ success: true });
   } catch (err) {

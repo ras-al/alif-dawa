@@ -16,7 +16,7 @@ CREATE TABLE roles (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO roles (name) VALUES ('admin'), ('teacher'), ('student'), ('class');
+INSERT INTO roles (name) VALUES ('admin'), ('teacher'), ('student'), ('class'), ('media'), ('award_point');
 
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
@@ -357,6 +357,9 @@ CREATE TABLE fest_teams (
 );
 
 -- Fest Programs
+-- Sequence for result sequence numbers
+CREATE SEQUENCE IF NOT EXISTS fest_result_seq START 1;
+
 CREATE TABLE fest_programs (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
@@ -367,6 +370,7 @@ CREATE TABLE fest_programs (
     max_judges INTEGER DEFAULT 3,
     status VARCHAR(50) DEFAULT 'scheduled', -- scheduled, live, completed
     is_called BOOLEAN DEFAULT false,
+    result_sequence_number INTEGER UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -416,6 +420,7 @@ CREATE TABLE fest_results (
     position INTEGER NOT NULL, -- 1, 2, 3
     points INTEGER DEFAULT 0,
     grade VARCHAR(5),
+    is_awarded BOOLEAN DEFAULT false,
     published_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     published_at TIMESTAMP WITH TIME ZONE,
     UNIQUE(fest_program_id, fest_registration_id)
