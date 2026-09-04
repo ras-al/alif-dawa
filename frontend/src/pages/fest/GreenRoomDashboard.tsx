@@ -229,7 +229,6 @@ export default function GreenRoomDashboard() {
             <table className="w-full min-w-[500px] text-sm">
               <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 text-left">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Seq #</th>
                   <th className="px-4 py-3 font-medium">Program</th>
                   <th className="px-4 py-3 font-medium">Category</th>
                   <th className="px-4 py-3 font-medium">Status</th>
@@ -239,7 +238,6 @@ export default function GreenRoomDashboard() {
               <tbody>
                 {(verifiedPrograms as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
                   <tr key={p.id} className="border-b border-slate-100 last:border-0">
-                    <td className="px-4 py-3 font-mono text-slate-500 font-semibold">{p.result_sequence_number ? String(p.result_sequence_number).padStart(3, '0') : '-'}</td>
                     <td className="px-4 py-3 font-medium">{p.title}</td>
                     <td className="px-4 py-3 text-slate-500">{p.category}</td>
                     <td className="px-4 py-3">
@@ -258,7 +256,7 @@ export default function GreenRoomDashboard() {
                 ))}
                 {(verifiedPrograms as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-slate-500">No verified programs{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''}.</td>
+                    <td colSpan={4} className="px-4 py-6 text-center text-slate-500">No verified programs{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''}.</td>
                   </tr>
                 )}
               </tbody>
