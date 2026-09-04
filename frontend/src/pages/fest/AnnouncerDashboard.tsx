@@ -112,11 +112,14 @@ export default function AnnouncerDashboard() {
         {activeTab === 'pending' && pending.map((p: any) => (
           <div key={p.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-bold text-slate-900">{p.title}</h3>
+              <h3 className="text-lg font-bold text-slate-900">Event #{p.id} - {p.title}</h3>
               <p className="text-slate-500 text-sm mb-3">{p.category}</p>
-              {p.winners && p.winners.map((w: any) => (
-                <div key={w.position} className="text-sm border-l-2 border-[#14532D] pl-2 mb-1">
-                  <strong>{w.position === 1 ? '1st' : w.position === 2 ? '2nd' : '3rd'} Place:</strong> {w.student_name} <span className="text-slate-400">({w.team_name} - {w.points} pts)</span>
+              {p.winners && p.winners.map((w: any, index: number) => (
+                <div key={`${w.position}-${index}`} className="text-sm border-l-2 border-[#14532D] pl-2 mb-1">
+                  {index === 0 && <strong>1st Place: </strong>}
+                  {index === 1 && <strong>2nd Place: </strong>}
+                  {index === 2 && <strong>3rd Place: </strong>}
+                  {w.code_letter ? `[Code ${w.code_letter}] ` : ''}{w.student_name} <span className="text-slate-400">({w.team_name} - {w.points} pts{w.grade ? ` - Grade: ${w.grade}` : ''})</span>
                 </div>
               ))}
             </div>
@@ -138,7 +141,7 @@ export default function AnnouncerDashboard() {
           <div key={p.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-slate-900">{p.title}</h3>
+                <h3 className="text-lg font-bold text-slate-900">Event #{p.id} - {p.title}</h3>
                 <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full">Published</span>
               </div>
               <p className="text-slate-500 text-sm">{p.category}</p>

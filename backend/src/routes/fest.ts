@@ -873,17 +873,20 @@ router.get('/announcer/pending', authorize('announcer', 'admin'), async (req, re
             'position', g.position,
             'points', g.points,
             'student_name', g.student_name,
-            'team_name', g.team_name
+            'team_name', g.team_name,
+            'grade', g.grade,
+            'code_letter', g.code_letter
           ) ORDER BY g.position ASC)
           FROM (
-            SELECT r.position, MAX(r.points) as points, string_agg(s.name, ', ') as student_name, t.name as team_name
+            SELECT r.position, MAX(r.points) as points, string_agg(s.name, ', ') as student_name, t.name as team_name, string_agg(DISTINCT c.name, ', ') as grade, reg.code_letter
             FROM fest_results r
             JOIN fest_registrations reg ON r.fest_registration_id = reg.id
             JOIN fest_participants part ON reg.fest_participant_id = part.id
             JOIN students s ON part.student_id = s.id
+            LEFT JOIN classes c ON s.class_id = c.id
             JOIN fest_teams t ON part.fest_team_id = t.id
             WHERE r.fest_program_id = p.id
-            GROUP BY r.position, t.name
+            GROUP BY r.position, t.name, reg.code_letter
           ) g
         ) as winners
        FROM fest_programs p 
