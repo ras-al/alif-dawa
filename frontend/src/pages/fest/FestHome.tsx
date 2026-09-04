@@ -398,7 +398,7 @@ const FestHome = () => {
                         </button>
                         
                         {expandedEvents[group.title] && (
-                          <div id={`group-results-${group.title.replace(/\\s+/g, '-')}`} className="p-4 sm:p-6 bg-[#F2F0E9]">
+                          <div id={`group-results-${group.title.replace(/\s+/g, '-')}`} className="p-4 sm:p-6 bg-[#F2F0E9]">
                             <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                               {group.results.filter(r => r.position <= 3).map((res) => (
                                 <div key={res.id} className="bg-white border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] flex flex-col h-full">
@@ -417,6 +417,20 @@ const FestHome = () => {
                                 </div>
                               ))}
                             </div>
+                            
+                            {group.results.filter(r => r.position > 3).length > 0 && (
+                              <div className="mt-6 border-t-[2px] border-dashed border-[#111111] pt-4">
+                                <h4 className="font-black uppercase text-sm mb-3 text-[#7A0C1E]">Other Participants</h4>
+                                <ul className="space-y-1.5">
+                                  {group.results.filter(r => r.position > 3).map((res) => (
+                                    <li key={res.id} className="text-sm font-bold uppercase flex justify-between border-b border-[#111111]/10 pb-1 last:border-0">
+                                      <span><span className="text-slate-500 mr-2">#{res.position}</span> {res.student_name} <span className="text-[#111111]/60">({res.team_name})</span></span>
+                                      <span>{res.points} PTS</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
