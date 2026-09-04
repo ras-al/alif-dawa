@@ -31,22 +31,26 @@ const FestHome = () => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState<string | null>(null);
 
-  const toggleEvent = (title: string) => {
-    setExpandedEvents(prev => ({ ...prev, [title]: !prev[title] }));
+  const toggleEvent = (key: string) => {
+    setExpandedEvents(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const downloadGroupImage = async (e: React.MouseEvent, title: string) => {
+  const downloadGroupImage = async (e: React.MouseEvent, key: string, title: string) => {
     e.stopPropagation(); // prevent accordion toggle
     
     // Ensure it's expanded first
-    setExpandedEvents(prev => ({ ...prev, [title]: true }));
-    setDownloadingEvent(title);
+    setExpandedEvents(prev => ({ ...prev, [key]: true }));
+    setDownloadingEvent(key);
     
     // Wait for DOM to render the expanded content
     setTimeout(async () => {
       try {
-        const el = document.getElementById(`group-results-${title.replace(/\\s+/g, '-')}`);
-        if (!el) return;
+        const el = document.getElementById(`group-results-${key.replace(/[^a-zA-Z0-9-]/g, '-')}`);
+        if (!el) {
+            console.error('Element not found');
+            setDownloadingEvent(null);
+            return;
+        }
         const canvas = await html2canvas(el, { backgroundColor: '#F2F0E9', scale: 2 });
         const url = canvas.toDataURL('image/png');
         setPreviewImage(url);
@@ -372,10 +376,12 @@ const FestHome = () => {
                       return acc;
                     }, {} as Record<string, { title: string, category: string, results: Result[] }>);
 
-                    return Object.values(grouped).map((group, idx) => (
+                    return Object.values(grouped).map((group, idx) => {
+                      const groupKey = `${group.title}-${group.category}`;
+                      return (
                       <div key={idx} className="bg-white border-[3px] border-[#111111] shadow-[6px_6px_0_#111111] sm:shadow-[8px_8px_0_#111111] overflow-hidden mb-6">
                         <button 
-                          onClick={() => toggleEvent(group.title)}
+                          onClick={() => toggleEvent(groupKey)}
                           className="w-full bg-[#111111] text-white p-4 sm:p-5 flex flex-row justify-between items-center gap-4 cursor-pointer hover:bg-[#222] transition-colors text-left"
                         >
                           <div>
@@ -388,17 +394,17 @@ const FestHome = () => {
                             <button onClick={(e) => handleShareGroup(e, group)} className="flex items-center justify-center w-10 h-10 bg-white text-[#111111] hover:bg-slate-200 border-[2px] border-[#111111] shadow-[2px_2px_0_#111111] transition-all">
                               <Share2 size={18} strokeWidth={2.5} />
                             </button>
-                            <button onClick={(e) => downloadGroupImage(e, group.title)} disabled={downloadingEvent === group.title} className="flex items-center justify-center w-10 h-10 bg-[#7A0C1E] text-white hover:bg-[#5a0915] border-[2px] border-[#111111] shadow-[2px_2px_0_#111111] transition-all disabled:opacity-50">
-                              {downloadingEvent === group.title ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} strokeWidth={2.5} />}
+                            <button onClick={(e) => downloadGroupImage(e, groupKey, group.title)} disabled={downloadingEvent === groupKey} className="flex items-center justify-center w-10 h-10 bg-[#7A0C1E] text-white hover:bg-[#5a0915] border-[2px] border-[#111111] shadow-[2px_2px_0_#111111] transition-all disabled:opacity-50">
+                              {downloadingEvent === groupKey ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} strokeWidth={2.5} />}
                             </button>
                             <div className="text-white ml-2">
-                              {expandedEvents[group.title] ? <ChevronUp size={28} strokeWidth={3} /> : <ChevronDown size={28} strokeWidth={3} />}
+                              {expandedEvents[groupKey] ? <ChevronUp size={28} strokeWidth={3} /> : <ChevronDown size={28} strokeWidth={3} />}
                             </div>
                           </div>
                         </button>
                         
-                        {expandedEvents[group.title] && (
-                          <div id={`group-results-${group.title.replace(/\s+/g, '-')}`} className="p-4 sm:p-6 bg-[#F2F0E9]">
+                        {expandedEvents[groupKey] && (
+                          <div id={`group-results-${groupKey.replace(/[^a-zA-Z0-9-]/g, '-')}`} className="p-4 sm:p-6 bg-[#F2F0E9]">
                             <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                               {group.results.filter(r => r.position <= 3).map((res) => (
                                 <div key={res.id} className="bg-white border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] flex flex-col h-full">
@@ -434,7 +440,8 @@ const FestHome = () => {
                           </div>
                         )}
                       </div>
-                    ));
+                      );
+                    });
                   })()}
                 </div>
               </div>
