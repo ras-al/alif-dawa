@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import pool from './db';
 
 import authRoutes from './routes/auth';
 import studentRoutes from './routes/students';
@@ -19,6 +20,9 @@ import feedbackRoutes from './routes/feedback';
 import festRoutes from './routes/fest';
 
 dotenv.config();
+
+// Auto-migrate missing columns
+pool.query('ALTER TABLE fest_results ADD COLUMN IF NOT EXISTS grade VARCHAR(5);').catch(console.error);
 
 const app = express();
 const port = process.env.PORT || 5000;
