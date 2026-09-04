@@ -846,11 +846,11 @@ router.post('/green-room/verify', authorize('green_room', 'admin'), async (req, 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query(`DELETE FROM fest_results WHERE fest_program_id = $1`, [program_id]);
       for (const r of results) {
           await client.query(
               `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points, grade, published_at)
-               VALUES ($1, $2, $3, $4, $5, NULL)
-               ON CONFLICT (fest_program_id, fest_registration_id) DO UPDATE SET position = EXCLUDED.position, points = EXCLUDED.points, grade = EXCLUDED.grade, published_at = NULL`,
+               VALUES ($1, $2, $3, $4, $5, NULL)`,
               [program_id, r.registration_id, r.position, r.points, r.grade]
           );
       }
