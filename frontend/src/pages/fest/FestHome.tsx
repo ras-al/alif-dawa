@@ -7,6 +7,7 @@ interface Result {
   id: number;
   position: number;
   points: number;
+  grade?: string;
   program_title: string;
   category: string;
   team_name: string;
@@ -412,9 +413,16 @@ const FestHome = () => {
                                     <span className={`inline-flex flex-shrink-0 items-center justify-center w-12 h-12 font-black text-2xl border-[3px] border-[#111111] ${res.position === 1 ? 'bg-[#7A0C1E] text-white shadow-[3px_3px_0_#111111]' : 'bg-white text-[#111111] shadow-[3px_3px_0_#7A0C1E]'}`}>
                                       #{res.position}
                                     </span>
-                                    <span className="font-black px-2 py-1 bg-[#111111] text-white text-xs uppercase tracking-widest">
-                                      {res.points} PTS
-                                    </span>
+                                    <div className="flex gap-1.5">
+                                      {res.grade && (
+                                        <span className="font-black px-2 py-1 bg-[#7A0C1E] text-white text-xs uppercase tracking-widest">
+                                          {res.grade}
+                                        </span>
+                                      )}
+                                      <span className="font-black px-2 py-1 bg-[#111111] text-white text-xs uppercase tracking-widest">
+                                        {res.points} PTS
+                                      </span>
+                                    </div>
                                   </div>
                                   <div className="p-4 flex-grow">
                                     <h4 className="font-black text-xl uppercase tracking-wider mb-1">{res.student_name}</h4>
@@ -431,7 +439,10 @@ const FestHome = () => {
                                   {group.results.filter(r => r.position > 3).map((res) => (
                                     <li key={res.id} className="text-sm font-bold uppercase flex justify-between border-b border-[#111111]/10 pb-1 last:border-0">
                                       <span><span className="text-slate-500 mr-2">#{res.position}</span> {res.student_name} <span className="text-[#111111]/60">({res.team_name})</span></span>
-                                      <span>{res.points} PTS</span>
+                                      <span className="flex items-center gap-2">
+                                        {res.grade && <span className="text-[#7A0C1E]">{res.grade}</span>}
+                                        <span>{res.points} PTS</span>
+                                      </span>
                                     </li>
                                   ))}
                                 </ul>
