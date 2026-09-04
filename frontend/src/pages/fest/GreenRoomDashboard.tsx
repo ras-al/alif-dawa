@@ -88,16 +88,27 @@ export default function GreenRoomDashboard() {
       return 0;
     };
 
+    // Calculate Grade String
+    const getGradeString = (avg: number) => {
+      if (avg >= 90) return 'A+';
+      if (avg >= 70) return 'A';
+      if (avg >= 60) return 'B';
+      if (avg >= 50) return 'C';
+      return null;
+    };
+
     const results = sortedRegistrations.map((s, idx) => {
       const position = idx + 1;
       const gradePoints = getGradePoints(s.avg, selectedProgram.category);
       const positionPoints = getPositionPoints(position);
       const totalPoints = gradePoints + positionPoints;
+      const grade = getGradeString(s.avg);
 
       return {
         registration_id: s.registration_id,
         position: position,
-        points: totalPoints
+        points: totalPoints,
+        grade: grade
       };
     });
 

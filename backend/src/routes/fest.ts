@@ -81,7 +81,7 @@ router.get('/public/results', async (req, res) => {
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT MAX(r.id) as id, r.position, MAX(r.points) as points, p.title as program_title, p.category, 
+      `SELECT MAX(r.id) as id, r.position, MAX(r.points) as points, MAX(r.grade) as grade, p.title as program_title, p.category, 
               t.name as team_name, string_agg(s.name, ', ') as student_name
        FROM fest_results r
        JOIN fest_programs p ON r.fest_program_id = p.id
@@ -827,15 +827,15 @@ router.get('/green-room/program/:programId', authorize('green_room', 'admin'), a
 
 router.post('/green-room/verify', authorize('green_room', 'admin'), async (req, res) => {
   const { program_id, results } = req.body;
-  // results should be array of { registration_id, position, points }
+  // results should be array of { registration_id, position, points, grade }
   try {
     await pool.query('BEGIN');
     for (const r of results) {
         await pool.query(
-            `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points, published_at)
-             VALUES ($1, $2, $3, $4, NULL)
-             ON CONFLICT (fest_program_id, fest_registration_id) DO UPDATE SET position = EXCLUDED.position, points = EXCLUDED.points, published_at = NULL`,
-            [program_id, r.registration_id, r.position, r.points]
+            `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points, grade, published_at)
+             VALUES ($1, $2, $3, $4, $5, NULL)
+             ON CONFLICT (fest_program_id, fest_registration_id) DO UPDATE SET position = EXCLUDED.position, points = EXCLUDED.points, grade = EXCLUDED.grade, published_at = NULL`,
+            [program_id, r.registration_id, r.position, r.points, r.grade]
         );
     }
     await pool.query(`UPDATE fest_programs SET status = 'completed' WHERE id = $1`, [program_id]);
@@ -878,7 +878,7 @@ router.get('/announcer/pending', authorize('announcer', 'admin'), async (req, re
             'code_letter', g.code_letter
           ) ORDER BY g.position ASC)
           FROM (
-            SELECT r.position, MAX(r.points) as points, string_agg(s.name, ', ') as student_name, t.name as team_name, string_agg(DISTINCT c.name, ', ') as grade, reg.code_letter
+            SELECT r.position, MAX(r.points) as points, string_agg(s.name, ', ') as student_name, t.name as team_name, MAX(r.grade) as grade, reg.code_letter
             FROM fest_results r
             JOIN fest_registrations reg ON r.fest_registration_id = reg.id
             JOIN fest_participants part ON reg.fest_participant_id = part.id

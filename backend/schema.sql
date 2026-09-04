@@ -415,6 +415,7 @@ CREATE TABLE fest_results (
     fest_registration_id INTEGER NOT NULL REFERENCES fest_registrations(id) ON DELETE CASCADE,
     position INTEGER NOT NULL, -- 1, 2, 3
     points INTEGER DEFAULT 0,
+    grade VARCHAR(5),
     published_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     published_at TIMESTAMP WITH TIME ZONE,
     UNIQUE(fest_program_id, fest_registration_id)
