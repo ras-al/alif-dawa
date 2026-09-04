@@ -847,12 +847,28 @@ router.post('/green-room/verify', authorize('green_room', 'admin'), async (req, 
     try {
       await client.query('BEGIN');
       await client.query(`DELETE FROM fest_results WHERE fest_program_id = $1`, [program_id]);
+      
+      const colCheck = await client.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='fest_results' AND column_name='grade'
+      `);
+      const hasGrade = colCheck.rows.length > 0;
+
       for (const r of results) {
-          await client.query(
-              `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points, grade, published_at)
-               VALUES ($1, $2, $3, $4, $5, NULL)`,
-              [program_id, r.registration_id, r.position, r.points, r.grade]
-          );
+          if (hasGrade) {
+              await client.query(
+                  `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points, grade, published_at)
+                   VALUES ($1, $2, $3, $4, $5, NULL)`,
+                  [program_id, r.registration_id, r.position, r.points, r.grade]
+              );
+          } else {
+              await client.query(
+                  `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points, published_at)
+                   VALUES ($1, $2, $3, $4, NULL)`,
+                  [program_id, r.registration_id, r.position, r.points]
+              );
+          }
       }
       await client.query(`UPDATE fest_programs SET status = 'completed' WHERE id = $1`, [program_id]);
       await client.query('COMMIT');
