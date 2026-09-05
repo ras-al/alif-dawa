@@ -36,6 +36,9 @@ export default function Login() {
         else if (user.role === 'judge') navigate('/judge');
         else if (user.role === 'green_room') navigate('/green-room');
         else if (user.role === 'announcer') navigate('/announcer');
+        else if (user.role === 'media') navigate('/media');
+        else if (user.role === 'award_point') navigate('/award-point');
+        else if (user.role === 'leader') navigate('/leader');
         else navigate('/student');
       } else {
         navigate('/admin');

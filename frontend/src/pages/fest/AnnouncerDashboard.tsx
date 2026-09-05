@@ -111,8 +111,13 @@ export default function AnnouncerDashboard() {
       <div className="grid gap-4">
         {activeTab === 'pending' && pending.map((p: any) => (
           <div key={p.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">Event #{p.id} - {p.title}</h3>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center flex-wrap gap-2 mb-1">
+                <span className="text-xs font-bold text-white bg-[#14532D] px-2.5 py-1 rounded-md shadow-sm tracking-wide">
+                  Result #{p.sequence_number ? String(p.sequence_number).padStart(3, '0') : '-'}
+                </span>
+                <span>{p.title}</span>
+              </h3>
               <p className="text-slate-500 text-sm mb-3">{p.category}</p>
               {p.winners && p.winners.map((w: any, index: number) => (
                 <div key={`${w.position}-${index}`} className="text-sm border-l-2 border-[#14532D] pl-2 mb-1">
@@ -125,7 +130,7 @@ export default function AnnouncerDashboard() {
             </div>
             <button 
               onClick={() => handlePublish(p.id)}
-              className="w-full sm:w-auto px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+              className="w-full sm:w-auto px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors flex-shrink-0"
             >
               <Megaphone size={18} /> Publish Now
             </button>
@@ -139,14 +144,27 @@ export default function AnnouncerDashboard() {
 
         {activeTab === 'published' && published.map((p: any) => (
           <div key={p.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-slate-900">Event #{p.id} - {p.title}</h3>
-                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full">Published</span>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center flex-wrap gap-2">
+                  <span className="text-xs font-bold text-white bg-[#14532D] px-2.5 py-1 rounded-md shadow-sm tracking-wide">
+                    Result #{p.sequence_number ? String(p.sequence_number).padStart(3, '0') : '-'}
+                  </span>
+                  <span>{p.title}</span>
+                </h3>
+                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200">Published</span>
               </div>
-              <p className="text-slate-500 text-sm">{p.category}</p>
+              <p className="text-slate-500 text-sm mb-2">{p.category}</p>
+              {p.winners && p.winners.map((w: any, index: number) => (
+                <div key={`${w.position}-${index}`} className="text-xs sm:text-sm border-l-2 border-emerald-600 pl-2 mb-1">
+                  {index === 0 && <strong>1st Place: </strong>}
+                  {index === 1 && <strong>2nd Place: </strong>}
+                  {index === 2 && <strong>3rd Place: </strong>}
+                  {w.code_letter ? `[Code ${w.code_letter}] ` : ''}{w.student_name} <span className="text-slate-400">({w.team_name} - {w.points} pts{w.grade ? ` - Grade: ${w.grade}` : ''})</span>
+                </div>
+              ))}
             </div>
-            <div className="flex w-full sm:w-auto gap-2">
+            <div className="flex w-full sm:w-auto gap-2 self-start sm:self-center flex-shrink-0">
               <button 
                 onClick={() => handleUndoPublish(p.id)}
                 className="flex-1 sm:flex-none px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors text-sm"

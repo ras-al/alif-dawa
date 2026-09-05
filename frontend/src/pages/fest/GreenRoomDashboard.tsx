@@ -238,7 +238,10 @@ export default function GreenRoomDashboard() {
               <tbody>
                 {(verifiedPrograms as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
                   <tr key={p.id} className="border-b border-slate-100 last:border-0">
-                    <td className="px-4 py-3 font-medium">{p.title}</td>
+                    <td className="px-4 py-3 font-medium">
+                      {p.sequence_number && <span className="text-xs font-bold text-white bg-[#14532D] px-1.5 py-0.5 rounded mr-2">#{String(p.sequence_number).padStart(3, '0')}</span>}
+                      {p.title}
+                    </td>
                     <td className="px-4 py-3 text-slate-500">{p.category}</td>
                     <td className="px-4 py-3">
                       {p.published_at ? (

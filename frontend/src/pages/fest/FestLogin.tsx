@@ -36,6 +36,8 @@ export default function FestLogin() {
         else if (user.role === 'green_room') navigate('/green-room');
         else if (user.role === 'announcer') navigate('/announcer');
         else if (user.role === 'leader') navigate('/leader');
+        else if (user.role === 'media') navigate('/media');
+        else if (user.role === 'award_point') navigate('/award-point');
         else {
           await logout();
           setError('Access Denied: Your account does not have Fest privileges.');

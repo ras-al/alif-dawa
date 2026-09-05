@@ -23,6 +23,52 @@ dotenv.config();
 
 // Auto-migrate missing columns
 pool.query('ALTER TABLE fest_results ADD COLUMN IF NOT EXISTS grade VARCHAR(5);').catch(console.error);
+pool.query('ALTER TABLE fest_programs ADD COLUMN IF NOT EXISTS sequence_number INTEGER;').catch(console.error);
+pool.query(`CREATE TABLE IF NOT EXISTS fest_award_redemptions (
+  id SERIAL PRIMARY KEY,
+  student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  description VARCHAR(255) NOT NULL,
+  amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+  note TEXT,
+  redeemed_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);`).catch(console.error);
+pool.query(`CREATE INDEX IF NOT EXISTS idx_award_redemptions_student ON fest_award_redemptions(student_id);`).catch(console.error);
+pool.query(`INSERT INTO roles (name) VALUES ('media') ON CONFLICT (name) DO NOTHING;`).catch(console.error);
+pool.query(`INSERT INTO roles (name) VALUES ('award_point') ON CONFLICT (name) DO NOTHING;`).catch(console.error);
+
+// Ensure any completed fest programs with results have sequence numbers assigned per event_type
+async function ensureResultSequenceNumbers() {
+  try {
+    for (const eventType of ['MAIN', 'HIFZ']) {
+      const unassigned = await pool.query(`
+        SELECT p.id
+        FROM fest_programs p
+        JOIN fest_results r ON p.id = r.fest_program_id
+        WHERE p.event_type = $1 AND p.sequence_number IS NULL
+        GROUP BY p.id
+        ORDER BY MIN(r.published_at) ASC NULLS LAST, p.id ASC
+      `, [eventType]);
+
+      if (unassigned.rows.length === 0) continue;
+
+      const maxRes = await pool.query(`
+        SELECT COALESCE(MAX(sequence_number), 0) as max_seq
+        FROM fest_programs
+        WHERE event_type = $1
+      `, [eventType]);
+      let currentSeq = parseInt(maxRes.rows[0].max_seq, 10);
+
+      for (const prog of unassigned.rows) {
+        currentSeq++;
+        await pool.query('UPDATE fest_programs SET sequence_number = $1 WHERE id = $2', [currentSeq, prog.id]);
+      }
+    }
+  } catch (err) {
+    console.error('Error ensuring result sequence numbers:', err);
+  }
+}
+ensureResultSequenceNumbers();
 
 const app = express();
 const port = process.env.PORT || 5000;

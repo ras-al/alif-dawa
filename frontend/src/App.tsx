@@ -20,6 +20,8 @@ import StageAdminDashboard from './pages/fest/StageAdminDashboard';
 import JudgeDashboard from './pages/fest/JudgeDashboard';
 import GreenRoomDashboard from './pages/fest/GreenRoomDashboard';
 import AnnouncerDashboard from './pages/fest/AnnouncerDashboard';
+import MediaDashboard from './pages/fest/MediaDashboard';
+import AwardPointDashboard from './pages/fest/AwardPointDashboard';
 import LeaderDashboard from './pages/fest/LeaderDashboard';
 import MarkEntry from './pages/admin/MarkEntry';
 import ProgressCard from './pages/admin/ProgressCard';
@@ -56,6 +58,8 @@ function App() {
       case 'judge': return '/judge';
       case 'green_room': return '/green-room';
       case 'announcer': return '/announcer';
+      case 'media': return '/media';
+      case 'award_point': return '/award-point';
       case 'leader': return '/leader';
       default: return '/student';
     }
@@ -134,20 +138,26 @@ function App() {
       </Route>
 
       {/* Fest Roles Routes */}
-      <Route element={<ProtectedRoute allowedRoles={['stage_admin']} />}>
+      <Route element={<ProtectedRoute allowedRoles={['stage_admin', 'admin']} />}>
         <Route element={<FestLayout />}><Route path="/stage-admin" element={<StageAdminDashboard />} /></Route>
       </Route>
-      <Route element={<ProtectedRoute allowedRoles={['judge']} />}>
+      <Route element={<ProtectedRoute allowedRoles={['judge', 'admin']} />}>
         <Route element={<FestLayout />}><Route path="/judge" element={<JudgeDashboard />} /></Route>
       </Route>
-      <Route element={<ProtectedRoute allowedRoles={['green_room']} />}>
+      <Route element={<ProtectedRoute allowedRoles={['green_room', 'admin']} />}>
         <Route element={<FestLayout />}><Route path="/green-room" element={<GreenRoomDashboard />} /></Route>
       </Route>
-      <Route element={<ProtectedRoute allowedRoles={['announcer']} />}>
+      <Route element={<ProtectedRoute allowedRoles={['announcer', 'admin']} />}>
         <Route element={<FestLayout />}><Route path="/announcer" element={<AnnouncerDashboard />} /></Route>
       </Route>
-      <Route element={<ProtectedRoute allowedRoles={['leader']} />}>
+      <Route element={<ProtectedRoute allowedRoles={['leader', 'admin']} />}>
         <Route element={<FestLayout />}><Route path="/leader" element={<LeaderDashboard />} /></Route>
+      </Route>
+      <Route element={<ProtectedRoute allowedRoles={['media', 'admin']} />}>
+        <Route element={<FestLayout />}><Route path="/media" element={<MediaDashboard />} /></Route>
+      </Route>
+      <Route element={<ProtectedRoute allowedRoles={['award_point', 'admin']} />}>
+        <Route element={<FestLayout />}><Route path="/award-point" element={<AwardPointDashboard />} /></Route>
       </Route>
 
       {/* Default redirect */}

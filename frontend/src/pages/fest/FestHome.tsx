@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2, BookOpen, Shield, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Share2, Download, Award, Newspaper, Camera, Globe, Users, Star, Image as ImageIcon, PlayCircle, MessageCircle, ThumbsUp, Info, Loader2, BookOpen, Shield, ChevronDown, ChevronUp, X, Search, Check } from 'lucide-react';
 import api from '../../api/client';
-import html2canvas from 'html2canvas';
+import { usePosterGenerator } from '../../components/ResultPosterGenerator';
 
 interface Result {
   id: number;
@@ -12,6 +12,9 @@ interface Result {
   category: string;
   team_name: string;
   student_name: string;
+  sequence_number?: number;
+  type?: string;
+  is_group?: boolean;
 }
 
 interface LeaderboardTeam {
@@ -24,64 +27,177 @@ const FestHome = () => {
   const [activeTab, setActiveTab] = useState<'about' | 'results' | 'news' | 'social' | 'gallery'>('about');
   const [eventType, setEventType] = useState<'MAIN' | 'HIFZ'>('MAIN');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'individual' | 'group' | 'stage' | 'offstage'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [results, setResults] = useState<Result[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({});
-  const [downloadingEvent, setDownloadingEvent] = useState<string | null>(null);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [previewTitle, setPreviewTitle] = useState<string | null>(null);
+
+  const { renderPoster, generatePoster, hasTemplate } = usePosterGenerator();
+  const [activePosterModal, setActivePosterModal] = useState<{
+    groupTitle: string;
+    groupCategory: string;
+    sequenceNumber?: number;
+    winners: Result[];
+    selectedIndex: number;
+    renderedUrl: string | null;
+    renderedBlob: Blob | null;
+    renderedFileName: string | null;
+    loading: boolean;
+  } | null>(null);
 
   const toggleEvent = (key: string) => {
     setExpandedEvents(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const downloadGroupImage = async (e: React.MouseEvent, key: string, title: string) => {
-    e.stopPropagation(); // prevent accordion toggle
-    
-    // Ensure it's expanded first
-    setExpandedEvents(prev => ({ ...prev, [key]: true }));
-    setDownloadingEvent(key);
-    
-    // Wait for DOM to render the expanded content
-    setTimeout(async () => {
-      try {
-        const el = document.getElementById(`group-results-${key.replace(/[^a-zA-Z0-9-]/g, '-')}`);
-        if (!el) {
-            console.error('Element not found');
-            setDownloadingEvent(null);
-            return;
-        }
-        const canvas = await html2canvas(el, { backgroundColor: '#F2F0E9', scale: 2 });
-        const url = canvas.toDataURL('image/png');
-        setPreviewImage(url);
-        setPreviewTitle(title);
-        setDownloadingEvent(null);
-      } catch (err) {
-        console.error('Failed to download group image', err);
-        setDownloadingEvent(null);
+  const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
+
+  const copyTextToClipboard = async (textToCopy: string) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(textToCopy);
+        return true;
       }
-    }, 150);
+    } catch (e) {
+      // fallback below
+    }
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = textToCopy;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      textArea.remove();
+      return successful;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const showNotification = (msg: string) => {
+    setCopiedNotification(msg);
+    setTimeout(() => setCopiedNotification(null), 3000);
+  };
+
+  const openPosterModal = async (group: { title: string; category: string; sequence_number?: number; results: Result[] }) => {
+    if (!hasTemplate) {
+      alert('No poster template has been configured in the Admin page yet.');
+      return;
+    }
+
+    const topWinners = group.results.filter(r => r.position <= 3).sort((a, b) => a.position - b.position);
+
+    setActivePosterModal({
+      groupTitle: group.title,
+      groupCategory: group.category,
+      sequenceNumber: group.sequence_number,
+      winners: topWinners,
+      selectedIndex: 0,
+      renderedUrl: null,
+      renderedBlob: null,
+      renderedFileName: null,
+      loading: true,
+    });
+
+    const rendered = await renderPoster({
+      id: `${group.title}-${group.category}`,
+      program_title: group.title,
+      category: group.category,
+      sequence_number: group.sequence_number,
+      results: group.results,
+    });
+
+    if (rendered) {
+      setActivePosterModal(prev => prev ? {
+        ...prev,
+        renderedUrl: rendered.dataUrl,
+        renderedBlob: rendered.blob,
+        renderedFileName: rendered.fileName,
+        loading: false,
+      } : null);
+    } else {
+      setActivePosterModal(prev => prev ? { ...prev, loading: false } : null);
+    }
   };
 
   const handleShareGroup = async (e: React.MouseEvent, group: any) => {
     e.stopPropagation();
-    const text = `🏆 Results for ${group.title} at Alif Dawa Fest 🏆\n` + 
-                 group.results.filter((r: Result) => r.position <= 3).map((r: Result) => `${r.position === 1 ? '🥇' : r.position === 2 ? '🥈' : '🥉'} ${r.team_name} (${r.points} PTS) - ${r.student_name}`).join('\n');
+    const resPrefix = group.sequence_number ? `Result #${String(group.sequence_number).padStart(3, '0')} - ` : '';
+    const winnersText = group.results
+      .filter((r: Result) => r.position <= 3)
+      .map((r: Result) => `${r.position === 1 ? '🥇 1st' : r.position === 2 ? '🥈 2nd' : '🥉 3rd'}: ${r.student_name} (${r.team_name} - ${r.points} PTS)`)
+      .join('\n');
+    
+    const text = `🏆 ${resPrefix}${group.title} (${group.category})\nAlif Dawa Fest Results:\n\n${winnersText}\n\nView live results: ${window.location.href}`;
+
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Alif Dawa Fest - ${group.title} Results`,
+          title: `Alif Dawa Fest - ${resPrefix}${group.title} Results`,
           text,
           url: window.location.href
         });
-      } catch (err) {
-        console.log('Error sharing', err);
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        console.warn('Web Share failed, falling back to clipboard:', err);
       }
-    } else {
-      navigator.clipboard.writeText(text);
-      alert('Results copied to clipboard!');
     }
+
+    const copied = await copyTextToClipboard(text);
+    if (copied) {
+      showNotification('Results summary copied to clipboard!');
+    } else {
+      alert('Could not copy automatically. Please copy the text manually.');
+    }
+  };
+
+  const handleSharePosterImage = async () => {
+    if (!activePosterModal?.renderedBlob || !activePosterModal?.renderedFileName) return;
+    try {
+      const file = new File([activePosterModal.renderedBlob], activePosterModal.renderedFileName, { type: 'image/png' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `${activePosterModal.groupTitle} - Result Poster`,
+          text: `🏆 ${activePosterModal.groupTitle} (${activePosterModal.groupCategory}) - Alif Dawa Fest Winner Poster`
+        });
+        return;
+      }
+      if (navigator.share) {
+        await navigator.share({
+          title: `${activePosterModal.groupTitle} - Result Poster`,
+          text: `🏆 ${activePosterModal.groupTitle} (${activePosterModal.groupCategory}) - Alif Dawa Fest`,
+          url: window.location.href
+        });
+        return;
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      console.warn('Share poster failed:', err);
+    }
+
+    const copied = await copyTextToClipboard(window.location.href);
+    if (copied) {
+      showNotification('Web link copied to clipboard!');
+    }
+  };
+
+  const handleDownloadActivePoster = () => {
+    if (!activePosterModal?.renderedUrl || !activePosterModal?.renderedFileName) return;
+    const a = document.createElement('a');
+    a.href = activePosterModal.renderedUrl;
+    a.download = activePosterModal.renderedFileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showNotification('Official event poster downloaded!');
   };
 
 
@@ -341,30 +457,127 @@ const FestHome = () => {
                   <h2 className="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tighter">Published Results</h2>
                 </div>
 
-                {/* Category Filter */}
-                <div className="flex flex-wrap gap-2 sm:gap-4 mb-8 sm:mb-10">
-                  {['All', ...(eventType === 'MAIN' ? ['Premier', 'Junior', 'Senior', 'General'] : ['Stage', 'General Stage', 'Off-Stage', 'General Off-Stage'])].map(cat => (
-                    <button
-                      key={cat}
-                      onClick={() => setCategoryFilter(cat)}
-                      className={`px-3 py-1.5 sm:px-5 sm:py-2.5 text-sm sm:text-base font-black uppercase tracking-wider border-[2px] sm:border-[3px] border-[#111111] transition-all ${
-                        categoryFilter === cat
-                          ? 'bg-[#111111] text-[#F2F0E9] shadow-[2px_2px_0_#7A0C1E] sm:shadow-[4px_4px_0_#7A0C1E] translate-y-[2px]'
-                          : 'bg-white text-[#111111] shadow-[2px_2px_0_#111111] sm:shadow-[4px_4px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
+                {/* Search & Category Filter */}
+                {/* Search & Category Filter */}
+                <div className="space-y-3 mb-8">
+                  {/* Event Type Filter: All, Individual, Group, Stage, Off-Stage */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs sm:text-sm font-black uppercase text-[#111111] mr-1">Type:</span>
+                    {[
+                      { id: 'all', label: 'All' },
+                      { id: 'individual', label: 'Individual' },
+                      { id: 'group', label: 'Group' },
+                      { id: 'stage', label: 'Stage' },
+                      { id: 'offstage', label: 'Off-Stage' },
+                    ].map(t => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTypeFilter(t.id as any)}
+                        className={`px-3 py-1 sm:px-4 sm:py-1.5 text-xs sm:text-sm font-black uppercase tracking-wider border-[2px] sm:border-[3px] border-[#111111] transition-all cursor-pointer ${
+                          typeFilter === t.id
+                            ? 'bg-[#7A0C1E] text-white shadow-[2px_2px_0_#111111] translate-y-[2px]'
+                            : 'bg-white text-[#111111] shadow-[2px_2px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none'
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                    {typeFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setTypeFilter('all')}
+                        className="text-xs font-bold text-[#7A0C1E] underline ml-1 cursor-pointer"
+                      >
+                        Reset Type
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Category Filter & Search Bar */}
+                  <div className="flex flex-col md:flex-row gap-3">
+                    <div className="flex flex-wrap items-center gap-2 flex-1">
+                      <span className="text-xs sm:text-sm font-black uppercase text-[#111111] mr-1">Category:</span>
+                      {['All', ...(eventType === 'MAIN' ? ['Premier', 'Junior', 'Senior', 'General'] : ['Stage', 'General Stage', 'Off-Stage', 'General Off-Stage'])].map(cat => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setCategoryFilter(cat)}
+                          className={`px-3 py-1 sm:px-4 sm:py-1.5 text-xs sm:text-sm font-black uppercase tracking-wider border-[2px] sm:border-[3px] border-[#111111] transition-all cursor-pointer ${
+                            categoryFilter === cat
+                              ? 'bg-[#111111] text-[#F2F0E9] shadow-[2px_2px_0_#7A0C1E] sm:shadow-[3px_3px_0_#7A0C1E] translate-y-[2px]'
+                              : 'bg-white text-[#111111] shadow-[2px_2px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1 sm:w-64">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input 
+                          type="text"
+                          placeholder="Search result # or name..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full pl-9 pr-3 py-1.5 sm:py-2 text-xs sm:text-sm font-bold bg-white border-[2px] sm:border-[3px] border-[#111111] shadow-[2px_2px_0_#111111] outline-none focus:bg-amber-50"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                        className="px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-black uppercase border-[2px] sm:border-[3px] border-[#111111] bg-white shadow-[2px_2px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none whitespace-nowrap cursor-pointer"
+                        title="Toggle Sort Order"
+                      >
+                        {sortOrder === 'desc' ? 'Newest ↓' : 'Seq #1 ↑'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-8 sm:space-y-12">
                   {(() => {
-                    const filtered = results.filter(r => categoryFilter === 'All' || r.category === categoryFilter);
+                    const filtered = results.filter(r => {
+                      const matchesCat = categoryFilter === 'All' || r.category === categoryFilter;
+                      if (!matchesCat) return false;
+
+                      const matchesType = (() => {
+                        if (typeFilter === 'all') return true;
+                        if (typeFilter === 'individual') return r.is_group === false;
+                        if (typeFilter === 'group') return r.is_group === true;
+                        if (typeFilter === 'stage') return r.type === 'stage';
+                        if (typeFilter === 'offstage') return r.type === 'off-stage';
+                        return true;
+                      })();
+                      if (!matchesType) return false;
+
+                      if (!searchQuery.trim()) return true;
+                      const q = searchQuery.toLowerCase().trim();
+                      const seqStr = r.sequence_number ? String(r.sequence_number).padStart(3, '0') : '';
+                      const seqMatch = seqStr.includes(q) || `result #${seqStr}`.toLowerCase().includes(q) || `#${seqStr}`.includes(q);
+                      const titleMatch = r.program_title.toLowerCase().includes(q);
+                      const studentMatch = r.student_name?.toLowerCase().includes(q);
+                      const teamMatch = r.team_name?.toLowerCase().includes(q);
+                      return seqMatch || titleMatch || studentMatch || teamMatch;
+                    });
+
                     if (filtered.length === 0) {
                       return (
                         <div className="col-span-full text-center py-24 bg-white border-[3px] border-[#111111] shadow-[8px_8px_0_#111111]">
-                          <p className="font-black text-xl uppercase">No results found{categoryFilter !== 'All' ? ` for ${categoryFilter} category` : ''}.</p>
+                          <p className="font-black text-xl uppercase">
+                            No results found{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''}{typeFilter !== 'all' ? ` (${typeFilter})` : ''}{searchQuery ? ` matching "${searchQuery}"` : ''}.
+                          </p>
+                          {(categoryFilter !== 'All' || typeFilter !== 'all' || searchQuery) && (
+                            <button
+                              type="button"
+                              onClick={() => { setCategoryFilter('All'); setTypeFilter('all'); setSearchQuery(''); }}
+                              className="mt-4 px-4 py-2 bg-[#111111] text-white font-bold text-xs uppercase tracking-wider"
+                            >
+                              Reset All Filters
+                            </button>
+                          )}
                         </div>
                       );
                     }
@@ -372,42 +585,97 @@ const FestHome = () => {
                     // Group by program_title + category
                     const grouped = filtered.reduce((acc, res) => {
                       const key = `${res.program_title} - ${res.category}`;
-                      if (!acc[key]) acc[key] = { title: res.program_title, category: res.category, results: [] };
+                      if (!acc[key]) acc[key] = { title: res.program_title, category: res.category, sequence_number: res.sequence_number, results: [] };
                       acc[key].results.push(res);
                       return acc;
-                    }, {} as Record<string, { title: string, category: string, results: Result[] }>);
+                    }, {} as Record<string, { title: string, category: string, sequence_number?: number, results: Result[] }>);
 
-                    return Object.values(grouped).map((group, idx) => {
+                    const groupList = Object.values(grouped).sort((a, b) => {
+                      const seqA = a.sequence_number ?? 0;
+                      const seqB = b.sequence_number ?? 0;
+                      return sortOrder === 'desc' ? seqB - seqA : seqA - seqB;
+                    });
+
+                    return groupList.map((group, idx) => {
                       const groupKey = `${group.title}-${group.category}`;
                       return (
                       <div key={idx} className="bg-white border-[3px] border-[#111111] shadow-[6px_6px_0_#111111] sm:shadow-[8px_8px_0_#111111] overflow-hidden mb-6">
-                        <button 
+                        <div 
                           onClick={() => toggleEvent(groupKey)}
-                          className="w-full bg-[#111111] text-white p-4 sm:p-5 flex flex-row justify-between items-center gap-4 cursor-pointer hover:bg-[#222] transition-colors text-left"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              toggleEvent(groupKey);
+                            }
+                          }}
+                          className="w-full bg-[#111111] text-white p-4 sm:p-5 flex flex-row justify-between items-center gap-4 cursor-pointer hover:bg-[#222] transition-colors text-left select-none"
                         >
                           <div>
-                            <h3 className="text-xl sm:text-2xl font-black uppercase tracking-wider">{group.title}</h3>
+                            <h3 className="text-xl sm:text-2xl font-black uppercase tracking-wider flex items-center flex-wrap gap-2">
+                              {group.sequence_number ? (
+                                <span className="text-xs sm:text-sm font-black bg-white text-[#111111] px-2.5 py-1 border-[2px] border-[#111111] shadow-[2px_2px_0_#7A0C1E]">
+                                  Result #{String(group.sequence_number).padStart(3, '0')}
+                                </span>
+                              ) : null}
+                              <span>{group.title}</span>
+                            </h3>
                             <div className="inline-block px-2 py-0.5 bg-white text-[#111111] font-bold text-[10px] sm:text-xs uppercase tracking-widest mt-1.5 sm:mt-2">
                               {group.category}
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            <button onClick={(e) => handleShareGroup(e, group)} className="flex items-center justify-center w-10 h-10 bg-white text-[#111111] hover:bg-slate-200 border-[2px] border-[#111111] shadow-[2px_2px_0_#111111] transition-all">
+                            <button 
+                              type="button"
+                              onClick={(e) => handleShareGroup(e, group)} 
+                              title="Share Results Summary"
+                              className="flex items-center justify-center w-10 h-10 bg-white text-[#111111] hover:bg-slate-200 border-[2px] border-[#111111] shadow-[2px_2px_0_#111111] transition-all cursor-pointer"
+                            >
                               <Share2 size={18} strokeWidth={2.5} />
                             </button>
-                            <button onClick={(e) => downloadGroupImage(e, groupKey, group.title)} disabled={downloadingEvent === groupKey} className="flex items-center justify-center w-10 h-10 bg-[#7A0C1E] text-white hover:bg-[#5a0915] border-[2px] border-[#111111] shadow-[2px_2px_0_#111111] transition-all disabled:opacity-50">
-                              {downloadingEvent === groupKey ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} strokeWidth={2.5} />}
+                            <button 
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openPosterModal(group);
+                              }} 
+                              title="View & Download Official Event Poster"
+                              className="flex items-center justify-center w-10 h-10 bg-[#7A0C1E] text-white hover:bg-[#5a0915] border-[2px] border-[#111111] shadow-[2px_2px_0_#111111] transition-all cursor-pointer"
+                            >
+                              <Download size={18} strokeWidth={2.5} />
                             </button>
                             <div className="text-white ml-2">
                               {expandedEvents[groupKey] ? <ChevronUp size={28} strokeWidth={3} /> : <ChevronDown size={28} strokeWidth={3} />}
                             </div>
                           </div>
-                        </button>
+                        </div>
                         
                         {expandedEvents[groupKey] && (
                           <div id={`group-results-${groupKey.replace(/[^a-zA-Z0-9-]/g, '-')}`} className="p-4 sm:p-6 bg-[#F2F0E9]">
+                            {/* Poster Header */}
+                            <div className="mb-4 pb-3 border-b-[3px] border-[#111111] flex flex-wrap justify-between items-center gap-2">
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  {group.sequence_number && (
+                                    <span className="bg-[#111111] text-white text-xs font-black px-2.5 py-1 uppercase tracking-wider">
+                                      Result #{String(group.sequence_number).padStart(3, '0')}
+                                    </span>
+                                  )}
+                                  <span className="text-xs font-black text-[#7A0C1E] uppercase tracking-widest px-2 py-0.5 bg-white border border-[#111111]">
+                                    {group.category}
+                                  </span>
+                                </div>
+                                <h3 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-[#111111]">{group.title}</h3>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xs font-black uppercase tracking-wider text-[#111111]">ALIF DAWA FEST</div>
+                                <div className="text-[10px] font-bold text-[#7A0C1E] uppercase">{eventType} FEST</div>
+                              </div>
+                            </div>
+
                             <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                              {group.results.filter(r => r.position <= 3).map((res) => (
+                              {group.results.filter(r => r.position <= 3).map((res, wIdx) => (
                                 <div key={res.id} className="bg-white border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] flex flex-col h-full">
                                   <div className="p-4 border-b-[3px] border-[#111111] flex justify-between items-center bg-[#F2F0E9]">
                                     <span className={`inline-flex flex-shrink-0 items-center justify-center w-12 h-12 font-black text-2xl border-[3px] border-[#111111] ${res.position === 1 ? 'bg-[#7A0C1E] text-white shadow-[3px_3px_0_#111111]' : 'bg-white text-[#111111] shadow-[3px_3px_0_#7A0C1E]'}`}>
@@ -424,9 +692,44 @@ const FestHome = () => {
                                       </span>
                                     </div>
                                   </div>
-                                  <div className="p-4 flex-grow">
-                                    <h4 className="font-black text-xl uppercase tracking-wider mb-1">{res.student_name}</h4>
-                                    <p className="text-sm font-bold text-[#7A0C1E] uppercase leading-snug">{res.team_name}</p>
+                                  <div className="p-4 flex-grow flex flex-col justify-between">
+                                    <div>
+                                      <h4 className="font-black text-xl uppercase tracking-wider mb-1">{res.student_name}</h4>
+                                      <p className="text-sm font-bold text-[#7A0C1E] uppercase leading-snug">{res.team_name}</p>
+                                    </div>
+
+                                    {/* Action buttons for Official Event Poster */}
+                                    <div className="mt-4 pt-3 border-t border-[#111111]/20 flex items-center justify-between gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openPosterModal(group);
+                                        }}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#111111] text-white hover:bg-[#7A0C1E] text-xs font-black uppercase tracking-wider transition-colors cursor-pointer border border-[#111111]"
+                                        title="View Event Result Poster (1st, 2nd, 3rd)"
+                                      >
+                                        <ImageIcon size={14} /> Event Poster
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          await generatePoster({
+                                            id: `${group.title}-${group.category}`,
+                                            program_title: group.title,
+                                            category: group.category,
+                                            sequence_number: group.sequence_number,
+                                            results: group.results,
+                                          });
+                                          showNotification(`${group.title} poster downloaded!`);
+                                        }}
+                                        className="inline-flex items-center gap-1 text-xs font-bold text-[#7A0C1E] hover:underline cursor-pointer"
+                                        title="Direct Download Event Poster"
+                                      >
+                                        <Download size={13} /> Quick Download
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               ))}
@@ -547,41 +850,93 @@ const FestHome = () => {
         </div>
       </footer>
 
-      {/* Preview Modal */}
-      {previewImage && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 animate-in fade-in duration-200">
+      {/* Official Admin Poster Preview Modal */}
+      {activePosterModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-3 sm:p-6 animate-in fade-in duration-200">
           <div className="bg-[#F2F0E9] p-4 sm:p-6 border-[3px] border-[#111111] shadow-[8px_8px_0_#111111] max-w-4xl w-full max-h-[95vh] flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl sm:text-2xl font-black uppercase tracking-wider">Preview Generated Poster</h3>
-              <button onClick={() => { setPreviewImage(null); setPreviewTitle(null); }} className="text-[#111111] hover:text-[#7A0C1E] transition-colors p-1 bg-white border-[2px] border-[#111111]">
-                <X size={24} strokeWidth={3} />
+            {/* Modal Header */}
+            <div className="flex justify-between items-center mb-4 pb-3 border-b-2 border-[#111111]">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  {activePosterModal.sequenceNumber && (
+                    <span className="bg-[#111111] text-white text-[11px] font-black px-2 py-0.5 uppercase tracking-wider">
+                      Result #{String(activePosterModal.sequenceNumber).padStart(3, '0')}
+                    </span>
+                  )}
+                  <span className="text-[11px] font-black text-[#7A0C1E] uppercase tracking-widest px-2 py-0.5 bg-white border border-[#111111]">
+                    {activePosterModal.groupCategory}
+                  </span>
+                </div>
+                <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight text-[#111111]">
+                  Official Event Poster: {activePosterModal.groupTitle}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setActivePosterModal(null)} 
+                className="text-[#111111] hover:bg-[#7A0C1E] hover:text-white transition-colors p-1.5 bg-white border-[2px] border-[#111111] shadow-[2px_2px_0_#111111] cursor-pointer"
+              >
+                <X size={22} strokeWidth={3} />
               </button>
             </div>
-            <div className="flex-1 overflow-auto border-[3px] border-[#111111] mb-6 bg-white flex items-center justify-center p-4">
-              <img src={previewImage} alt="Preview" className="w-full h-auto object-contain max-h-[60vh] shadow-lg" />
+
+            {/* Poster Preview Area */}
+            <div className="flex-1 overflow-auto border-[3px] border-[#111111] mb-4 bg-[#222222] flex items-center justify-center p-3 sm:p-6 min-h-[300px]">
+              {activePosterModal.loading ? (
+                <div className="flex flex-col items-center gap-3 text-white">
+                  <Loader2 size={36} className="animate-spin text-amber-400" />
+                  <p className="text-xs font-bold uppercase tracking-wider">Rendering Official Event Poster...</p>
+                </div>
+              ) : activePosterModal.renderedUrl ? (
+                <img 
+                  src={activePosterModal.renderedUrl} 
+                  alt="Official Event Result Poster" 
+                  className="w-auto h-auto object-contain max-h-[62vh] max-w-full shadow-2xl border border-white/20" 
+                />
+              ) : (
+                <p className="text-white/70 text-sm font-bold">Could not render poster preview.</p>
+              )}
             </div>
-            <div className="flex justify-end gap-4">
-              <button 
-                onClick={() => { setPreviewImage(null); setPreviewTitle(null); }}
-                className="px-4 py-3 sm:px-6 bg-white text-[#111111] font-black uppercase tracking-wider border-[3px] border-[#111111] hover:bg-slate-100 transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => {
-                  const a = document.createElement('a');
-                  a.href = previewImage;
-                  a.download = `${(previewTitle || 'Result').replace(/\\s+/g, '_')}_Results.png`;
-                  a.click();
-                  setPreviewImage(null);
-                  setPreviewTitle(null);
-                }}
-                className="flex items-center gap-2 px-4 py-3 sm:px-8 bg-[#7A0C1E] text-white font-black uppercase tracking-wider border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
-              >
-                <Download size={20} strokeWidth={3} /> Download
-              </button>
+
+            {/* Action Footer */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <div className="text-xs font-bold text-[#111111]/70">
+                Template configured via Admin Panel (1st, 2nd, 3rd with Unit Names)
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setActivePosterModal(null)}
+                  className="px-4 py-2 sm:px-5 sm:py-2.5 bg-white text-[#111111] font-black text-xs sm:text-sm uppercase tracking-wider border-[2px] sm:border-[3px] border-[#111111] hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+                <button 
+                  type="button"
+                  disabled={!activePosterModal.renderedUrl || activePosterModal.loading}
+                  onClick={handleSharePosterImage}
+                  className="flex items-center gap-1.5 px-4 py-2 sm:px-5 sm:py-2.5 bg-white text-[#111111] font-black text-xs sm:text-sm uppercase tracking-wider border-[2px] sm:border-[3px] border-[#111111] shadow-[3px_3px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Share2 size={16} strokeWidth={2.5} /> Share Poster
+                </button>
+                <button 
+                  type="button"
+                  disabled={!activePosterModal.renderedUrl || activePosterModal.loading}
+                  onClick={handleDownloadActivePoster}
+                  className="flex items-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 bg-[#7A0C1E] text-white font-black text-xs sm:text-sm uppercase tracking-wider border-[2px] sm:border-[3px] border-[#111111] shadow-[3px_3px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Download size={16} strokeWidth={2.5} /> Download Poster
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {copiedNotification && (
+        <div className="fixed bottom-6 right-6 z-[200] bg-[#111111] text-white px-5 py-3 border-[3px] border-white shadow-[4px_4px_0_#7A0C1E] flex items-center gap-2 animate-in slide-in-from-bottom-5 duration-200">
+          <Check size={18} className="text-emerald-400" />
+          <span className="font-bold text-sm uppercase tracking-wider">{copiedNotification}</span>
         </div>
       )}
     </div>

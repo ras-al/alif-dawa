@@ -81,8 +81,8 @@ router.get('/public/results', async (req, res) => {
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT MAX(r.id) as id, r.position, MAX(r.points) as points, MAX(r.grade) as grade, p.title as program_title, p.category, 
-              t.name as team_name, string_agg(s.name, ', ') as student_name
+      `SELECT MAX(r.id) as id, r.position, MAX(r.points) as points, MAX(r.grade) as grade, p.title as program_title, p.category, p.type, p.is_group,
+              t.name as team_name, string_agg(s.name, ', ') as student_name, p.sequence_number
        FROM fest_results r
        JOIN fest_programs p ON r.fest_program_id = p.id
        JOIN fest_registrations reg ON r.fest_registration_id = reg.id
@@ -90,8 +90,8 @@ router.get('/public/results', async (req, res) => {
        JOIN students s ON part.student_id = s.id
        JOIN fest_teams t ON part.fest_team_id = t.id
        WHERE r.published_at IS NOT NULL AND p.event_type = $1
-       GROUP BY p.id, r.position, p.title, p.category, t.name
-       ORDER BY p.id ASC, r.position ASC`,
+       GROUP BY p.id, r.position, p.title, p.category, p.type, p.is_group, t.name, p.sequence_number
+       ORDER BY p.sequence_number ASC NULLS LAST, p.id ASC, r.position ASC`,
       [eventType]
     );
     res.json(rows);
@@ -238,6 +238,32 @@ router.get('/leader/notifications/stream', async (req: AuthRequest, res) => {
     const idx = sseClients.findIndex(c => c.id === clientId);
     if (idx !== -1) sseClients.splice(idx, 1);
   });
+});
+
+// Public GET poster template
+router.get('/public/poster-template', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT image_url, config FROM fest_poster_templates ORDER BY id DESC LIMIT 1`);
+    if (rows.length === 0) {
+      return res.json({ configured: false, image_url: null, config: null });
+    }
+    res.json({ configured: true, ...rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Public GET participant card template
+router.get('/public/participant-card-template', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT image_url, config FROM fest_participant_card_templates ORDER BY id DESC LIMIT 1`);
+    if (rows.length === 0) {
+      return res.json({ configured: false, image_url: null, config: null });
+    }
+    res.json({ configured: true, ...rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
 });
 
 // ==========================================
@@ -446,23 +472,45 @@ router.get('/admin/individual-points', authorize('admin'), async (req: AuthReque
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT 
+      `WITH student_group_points AS (
+         SELECT 
+           reg.fest_participant_id,
+           ROUND(SUM(fr.points::decimal / GREATEST(cnt.member_count, 1)), 1) as group_points
+         FROM fest_results fr
+         JOIN fest_registrations winner_reg ON fr.fest_registration_id = winner_reg.id
+         JOIN fest_participants winner_part ON winner_reg.fest_participant_id = winner_part.id
+         JOIN fest_programs fp ON fr.fest_program_id = fp.id
+         JOIN (
+           SELECT r2.fest_program_id, p2.fest_team_id, COUNT(*) as member_count
+           FROM fest_registrations r2
+           JOIN fest_participants p2 ON r2.fest_participant_id = p2.id
+           GROUP BY r2.fest_program_id, p2.fest_team_id
+         ) cnt ON cnt.fest_program_id = fr.fest_program_id AND cnt.fest_team_id = winner_part.fest_team_id
+         JOIN fest_registrations reg ON reg.fest_program_id = fr.fest_program_id
+         JOIN fest_participants p ON reg.fest_participant_id = p.id AND p.fest_team_id = winner_part.fest_team_id
+         WHERE fp.is_group = true AND fr.published_at IS NOT NULL
+         GROUP BY reg.fest_participant_id
+       )
+       SELECT 
           part.id, 
-          u.username as student_name, 
+          s.name as student_name, 
           part.chest_number,
           t.name as team_name,
-          COALESCE(SUM(CASE WHEN p.type = 'stage' AND p.is_group = false THEN r.points ELSE 0 END), 0)::int as stage_points,
-          COALESCE(SUM(CASE WHEN p.type = 'off-stage' AND p.is_group = false THEN r.points ELSE 0 END), 0)::int as off_stage_points,
-          COALESCE(SUM(CASE WHEN p.is_group = true THEN r.points ELSE 0 END), 0)::int as group_points,
-          COALESCE(SUM(r.points), 0)::int as total_points
+          COALESCE(SUM(CASE WHEN p.type = 'stage' AND p.is_group = false THEN r.points ELSE 0 END), 0)::numeric(10,1) as stage_points,
+          COALESCE(SUM(CASE WHEN p.type = 'off-stage' AND p.is_group = false THEN r.points ELSE 0 END), 0)::numeric(10,1) as off_stage_points,
+          (COALESCE(SUM(CASE WHEN p.type = 'stage' AND p.is_group = false THEN r.points ELSE 0 END), 0) + 
+           COALESCE(SUM(CASE WHEN p.type = 'off-stage' AND p.is_group = false THEN r.points ELSE 0 END), 0))::numeric(10,1) as individual_points,
+          COALESCE(sgp.group_points, 0)::numeric(10,1) as group_points,
+          (COALESCE(SUM(CASE WHEN p.is_group = false THEN r.points ELSE 0 END), 0) + COALESCE(sgp.group_points, 0))::numeric(10,1) as total_points
        FROM fest_participants part
-       JOIN users u ON part.student_id = u.id
+       JOIN students s ON part.student_id = s.id
        LEFT JOIN fest_teams t ON part.fest_team_id = t.id
        LEFT JOIN fest_registrations reg ON part.id = reg.fest_participant_id
        LEFT JOIN fest_results r ON reg.id = r.fest_registration_id AND r.published_at IS NOT NULL
        LEFT JOIN fest_programs p ON reg.fest_program_id = p.id
+       LEFT JOIN student_group_points sgp ON part.id = sgp.fest_participant_id
        WHERE t.event_type = $1
-       GROUP BY part.id, u.username, part.chest_number, t.name
+       GROUP BY part.id, s.name, part.chest_number, t.name, sgp.group_points
        ORDER BY total_points DESC`, [eventType]
     );
     res.json(rows);
@@ -480,7 +528,7 @@ router.get('/admin/users', authorize('admin'), async (req: AuthRequest, res) => 
       JOIN roles r ON u.role_id = r.id 
       LEFT JOIN fest_team_leaders ftl ON u.id = ftl.user_id
       LEFT JOIN fest_teams ft ON ftl.fest_team_id = ft.id
-      WHERE r.name IN ('judge', 'stage_admin', 'green_room', 'announcer', 'leader')
+      WHERE r.name IN ('judge', 'stage_admin', 'green_room', 'announcer', 'leader', 'media', 'award_point')
       ORDER BY r.name, u.username
     `);
     res.json(rows);
@@ -798,12 +846,12 @@ router.get('/green-room/verified', authorize('green_room', 'admin'), async (req,
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT DISTINCT p.id, p.title, p.category, 
+      `SELECT DISTINCT p.id, p.title, p.category, p.sequence_number,
         (SELECT MAX(published_at) FROM fest_results r WHERE r.fest_program_id = p.id) as published_at
        FROM fest_programs p
        JOIN fest_results r ON p.id = r.fest_program_id
        WHERE p.event_type = $1
-       ORDER BY p.title`, [eventType]
+       ORDER BY p.sequence_number ASC NULLS LAST, p.title`, [eventType]
     );
     res.json(rows);
   } catch (err) {
@@ -871,6 +919,20 @@ router.post('/green-room/verify', authorize('green_room', 'admin'), async (req, 
           }
       }
       await client.query(`UPDATE fest_programs SET status = 'completed' WHERE id = $1`, [program_id]);
+      
+      // Assign sequence number (per event_type)
+      const seqRes = await client.query(
+        `SELECT COALESCE(MAX(fp2.sequence_number), 0) + 1 as next_seq
+         FROM fest_programs fp2
+         WHERE fp2.event_type = (SELECT event_type FROM fest_programs WHERE id = $1)`,
+        [program_id]
+      );
+      const nextSeq = seqRes.rows[0].next_seq;
+      await client.query(
+        `UPDATE fest_programs SET sequence_number = $1 WHERE id = $2 AND sequence_number IS NULL`,
+        [nextSeq, program_id]
+      );
+      
       await client.query('COMMIT');
       res.json({ success: true });
     } catch (err) {
@@ -913,7 +975,7 @@ router.get('/announcer/pending', authorize('announcer', 'admin'), async (req, re
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT p.id, p.title, p.category, 
+      `SELECT p.id, p.title, p.category, p.sequence_number,
         (
           SELECT json_agg(json_build_object(
             'position', g.position,
@@ -940,7 +1002,8 @@ router.get('/announcer/pending', authorize('announcer', 'admin'), async (req, re
        AND EXISTS (SELECT 1 FROM fest_results WHERE fest_program_id = p.id)
        AND NOT EXISTS (
          SELECT 1 FROM fest_results WHERE fest_program_id = p.id AND published_at IS NOT NULL
-       )`, [eventType]
+       )
+       ORDER BY p.sequence_number ASC NULLS LAST, p.id ASC`, [eventType]
     );
     res.json(rows);
   } catch (err) {
@@ -953,6 +1016,18 @@ router.post('/announcer/publish', authorize('announcer', 'admin'), async (req: A
   const { program_id } = req.body;
   const userId = req.user?.id;
   try {
+    // If sequence_number is null on the program, assign the next sequence number for its event_type
+    const progRes = await pool.query(`SELECT sequence_number, event_type FROM fest_programs WHERE id = $1`, [program_id]);
+    if (progRes.rows.length > 0 && progRes.rows[0].sequence_number == null) {
+      const seqRes = await pool.query(
+        `SELECT COALESCE(MAX(fp2.sequence_number), 0) + 1 as next_seq
+         FROM fest_programs fp2
+         WHERE fp2.event_type = $1`,
+        [progRes.rows[0].event_type]
+      );
+      await pool.query(`UPDATE fest_programs SET sequence_number = $1 WHERE id = $2`, [seqRes.rows[0].next_seq, program_id]);
+    }
+
     await pool.query(
       `UPDATE fest_results SET published_at = CURRENT_TIMESTAMP, published_by = $1 WHERE fest_program_id = $2`,
       [userId, program_id]
@@ -969,11 +1044,32 @@ router.get('/announcer/published', authorize('announcer', 'admin'), async (req, 
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT DISTINCT p.id, p.title, p.category, 
-        (SELECT MAX(published_at) FROM fest_results r WHERE r.fest_program_id = p.id) as published_at
+      `SELECT p.id, p.title, p.category, p.sequence_number,
+        (SELECT MAX(published_at) FROM fest_results r WHERE r.fest_program_id = p.id) as published_at,
+        (
+          SELECT json_agg(json_build_object(
+            'position', g.position,
+            'points', g.points,
+            'student_name', g.student_name,
+            'team_name', g.team_name,
+            'grade', g.grade,
+            'code_letter', g.code_letter
+          ) ORDER BY g.position ASC)
+          FROM (
+            SELECT r.position, MAX(r.points) as points, string_agg(s.name, ', ') as student_name, t.name as team_name, MAX(r.grade) as grade, reg.code_letter
+            FROM fest_results r
+            JOIN fest_registrations reg ON r.fest_registration_id = reg.id
+            JOIN fest_participants part ON reg.fest_participant_id = part.id
+            JOIN students s ON part.student_id = s.id
+            JOIN fest_teams t ON part.fest_team_id = t.id
+            WHERE r.fest_program_id = p.id
+            GROUP BY r.position, t.name, reg.code_letter
+          ) g
+        ) as winners
        FROM fest_programs p
        JOIN fest_results r ON p.id = r.fest_program_id
        WHERE r.published_at IS NOT NULL AND p.event_type = $1
+       GROUP BY p.id, p.title, p.category, p.sequence_number
        ORDER BY published_at DESC`, [eventType]
     );
     res.json(rows);
@@ -1722,19 +1818,6 @@ router.post('/admin/poster-template', authenticate, authorize('admin'), upload.s
   }
 });
 
-// Public GET poster template
-router.get('/public/poster-template', async (_req, res) => {
-  try {
-    const { rows } = await pool.query(`SELECT image_url, config FROM fest_poster_templates ORDER BY id DESC LIMIT 1`);
-    if (rows.length === 0) {
-      return res.json({ configured: false, image_url: null, config: null });
-    }
-    res.json({ configured: true, ...rows[0] });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Server error' });
-  }
-});
-
 // ==========================================
 // PARTICIPANT CARD TEMPLATE
 // ==========================================
@@ -1773,17 +1856,336 @@ router.post('/admin/participant-card-template', authenticate, authorize('admin')
   }
 });
 
-// Public GET participant card template
-router.get('/public/participant-card-template', async (_req, res) => {
+// ==========================================
+// AWARD POINT ROUTES
+// ==========================================
+
+// Helper: Compute all students' award points from published results
+const AWARD_POINTS_QUERY = `
+  WITH individual_points AS (
+    SELECT 
+      part.student_id,
+      COALESCE(SUM(fr.points), 0) as points
+    FROM fest_results fr
+    JOIN fest_registrations reg ON fr.fest_registration_id = reg.id
+    JOIN fest_participants part ON reg.fest_participant_id = part.id
+    JOIN fest_programs fp ON fr.fest_program_id = fp.id
+    WHERE fr.published_at IS NOT NULL
+    AND fp.is_group = false
+    GROUP BY part.student_id
+  ),
+  group_points AS (
+    SELECT 
+      p3.student_id,
+      SUM(
+        fr.points::decimal / GREATEST(team_members.cnt, 1)
+      ) as points
+    FROM fest_results fr
+    JOIN fest_registrations winner_reg ON fr.fest_registration_id = winner_reg.id
+    JOIN fest_participants winner_part ON winner_reg.fest_participant_id = winner_part.id
+    JOIN fest_programs fp ON fr.fest_program_id = fp.id
+    CROSS JOIN LATERAL (
+      SELECT COUNT(*) as cnt
+      FROM fest_registrations r2
+      JOIN fest_participants p2 ON r2.fest_participant_id = p2.id
+      WHERE r2.fest_program_id = fr.fest_program_id
+      AND p2.fest_team_id = winner_part.fest_team_id
+    ) team_members
+    JOIN fest_registrations r3 ON r3.fest_program_id = fr.fest_program_id
+    JOIN fest_participants p3 ON r3.fest_participant_id = p3.id 
+      AND p3.fest_team_id = winner_part.fest_team_id
+    WHERE fp.is_group = true
+    AND fr.published_at IS NOT NULL
+    GROUP BY p3.student_id
+  ),
+  redeemed AS (
+    SELECT 
+      student_id,
+      COALESCE(SUM(amount), 0) as total_redeemed
+    FROM fest_award_redemptions
+    GROUP BY student_id
+  )
+  SELECT 
+    s.id as student_id,
+    s.name as student_name,
+    s.admission_number,
+    c.name as class_name,
+    part.chest_number,
+    t.name as team_name,
+    COALESCE(ip.points, 0)::decimal as individual_points,
+    COALESCE(gp.points, 0)::decimal as general_points,
+    (COALESCE(ip.points, 0) + COALESCE(gp.points, 0))::decimal as total_points,
+    ((COALESCE(ip.points, 0) + COALESCE(gp.points, 0)) * 10)::decimal as total_award_amount,
+    COALESCE(r.total_redeemed, 0)::decimal as total_redeemed,
+    ((COALESCE(ip.points, 0) + COALESCE(gp.points, 0)) * 10 - COALESCE(r.total_redeemed, 0))::decimal as remaining_balance
+  FROM students s
+  JOIN fest_participants part ON s.id = part.student_id
+  JOIN fest_teams t ON part.fest_team_id = t.id
+  LEFT JOIN classes c ON s.class_id = c.id
+  LEFT JOIN individual_points ip ON s.id = ip.student_id
+  LEFT JOIN group_points gp ON s.id = gp.student_id
+  LEFT JOIN redeemed r ON s.id = r.student_id
+  WHERE (COALESCE(ip.points, 0) + COALESCE(gp.points, 0)) > 0
+  ORDER BY total_points DESC
+`;
+
+// GET all students with award points
+router.get('/award-point/students', authenticate, authorize('award_point', 'admin'), async (_req, res) => {
   try {
-    const { rows } = await pool.query(`SELECT image_url, config FROM fest_participant_card_templates ORDER BY id DESC LIMIT 1`);
-    if (rows.length === 0) {
-      return res.json({ configured: false, image_url: null, config: null });
-    }
-    res.json({ configured: true, ...rows[0] });
+    const { rows } = await pool.query(AWARD_POINTS_QUERY);
+    res.json(rows);
   } catch (err: any) {
+    console.error('Award point students error:', err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// GET single student award details
+router.get('/award-point/students/:studentId', authenticate, authorize('award_point', 'admin'), async (req, res) => {
+  try {
+    // Get student summary
+    const { rows: summaryRows } = await pool.query(
+      AWARD_POINTS_QUERY + ` -- dummy end`
+    );
+    const student = summaryRows.find((r: any) => r.student_id === parseInt(req.params.studentId));
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found or has no points' });
+    }
+
+    // Get competition breakdown
+    const { rows: competitions } = await pool.query(`
+      SELECT 
+        fp.title as program_title,
+        fp.category,
+        fp.is_group,
+        fr.position,
+        fr.points,
+        fr.grade,
+        fp.sequence_number,
+        CASE 
+          WHEN fp.is_group = true THEN 
+            fr.points::decimal / GREATEST(
+              (SELECT COUNT(*) FROM fest_registrations r2 
+               JOIN fest_participants p2 ON r2.fest_participant_id = p2.id 
+               WHERE r2.fest_program_id = fp.id 
+               AND p2.fest_team_id = part.fest_team_id), 1
+            )
+          ELSE fr.points::decimal
+        END as effective_points,
+        CASE 
+          WHEN fp.is_group = true THEN 
+            (SELECT COUNT(*) FROM fest_registrations r2 
+             JOIN fest_participants p2 ON r2.fest_participant_id = p2.id 
+             WHERE r2.fest_program_id = fp.id 
+             AND p2.fest_team_id = part.fest_team_id)::int
+          ELSE 1
+        END as team_member_count
+      FROM fest_results fr
+      JOIN fest_registrations reg ON fr.fest_registration_id = reg.id
+      JOIN fest_participants part ON reg.fest_participant_id = part.id
+      JOIN fest_programs fp ON fr.fest_program_id = fp.id
+      WHERE part.student_id = $1 AND fr.published_at IS NOT NULL
+      
+      UNION ALL
+      
+      -- Group competitions where teammate has the result record
+      SELECT 
+        fp.title as program_title,
+        fp.category,
+        fp.is_group,
+        fr.position,
+        fr.points,
+        fr.grade,
+        fp.sequence_number,
+        fr.points::decimal / GREATEST(team_members.cnt, 1) as effective_points,
+        team_members.cnt::int as team_member_count
+      FROM fest_results fr
+      JOIN fest_registrations winner_reg ON fr.fest_registration_id = winner_reg.id
+      JOIN fest_participants winner_part ON winner_reg.fest_participant_id = winner_part.id
+      JOIN fest_programs fp ON fr.fest_program_id = fp.id
+      CROSS JOIN LATERAL (
+        SELECT COUNT(*) as cnt
+        FROM fest_registrations r2
+        JOIN fest_participants p2 ON r2.fest_participant_id = p2.id
+        WHERE r2.fest_program_id = fr.fest_program_id
+        AND p2.fest_team_id = winner_part.fest_team_id
+      ) team_members
+      WHERE fp.is_group = true
+      AND fr.published_at IS NOT NULL
+      AND winner_part.student_id != $1
+      AND winner_part.fest_team_id = (SELECT fest_team_id FROM fest_participants WHERE student_id = $1)
+      AND EXISTS (
+        SELECT 1 FROM fest_registrations r3
+        JOIN fest_participants p3 ON r3.fest_participant_id = p3.id
+        WHERE r3.fest_program_id = fr.fest_program_id AND p3.student_id = $1
+      )
+      ORDER BY program_title
+    `, [req.params.studentId]);
+
+    // Get redemption history
+    const { rows: transactions } = await pool.query(`
+      SELECT r.id, r.description, r.amount, r.note, r.created_at,
+             u.username as redeemed_by_name
+      FROM fest_award_redemptions r
+      LEFT JOIN users u ON r.redeemed_by = u.id
+      WHERE r.student_id = $1
+      ORDER BY r.created_at DESC
+    `, [req.params.studentId]);
+
+    res.json({ ...student, competitions, transactions });
+  } catch (err: any) {
+    console.error('Award point student detail error:', err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// POST redeem a reward / book prize
+router.post('/award-point/redeem', authenticate, authorize('award_point', 'admin'), async (req: AuthRequest, res) => {
+  const { student_id, description, amount, note } = req.body;
+  const userId = req.user?.id;
+
+  if (!student_id || !description || !amount || amount <= 0) {
+    return res.status(400).json({ error: 'Student ID, description, and a positive amount are required' });
+  }
+
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Calculate current balance inside the transaction to prevent race conditions
+      const { rows: balanceRows } = await client.query(`
+        WITH individual_points AS (
+          SELECT COALESCE(SUM(fr.points), 0) as points
+          FROM fest_results fr
+          JOIN fest_registrations reg ON fr.fest_registration_id = reg.id
+          JOIN fest_participants part ON reg.fest_participant_id = part.id
+          JOIN fest_programs fp ON fr.fest_program_id = fp.id
+          WHERE part.student_id = $1 AND fr.published_at IS NOT NULL
+          AND fp.category NOT ILIKE '%general%'
+        ),
+        general_points AS (
+          SELECT COALESCE(SUM(
+            fr.points::decimal / GREATEST(team_members.cnt, 1)
+          ), 0) as points
+          FROM fest_results fr
+          JOIN fest_registrations winner_reg ON fr.fest_registration_id = winner_reg.id
+          JOIN fest_participants winner_part ON winner_reg.fest_participant_id = winner_part.id
+          JOIN fest_programs fp ON fr.fest_program_id = fp.id
+          CROSS JOIN LATERAL (
+            SELECT COUNT(*) as cnt
+            FROM fest_registrations r2
+            JOIN fest_participants p2 ON r2.fest_participant_id = p2.id
+            WHERE r2.fest_program_id = fr.fest_program_id
+            AND p2.fest_team_id = winner_part.fest_team_id
+          ) team_members
+          JOIN fest_registrations r3 ON r3.fest_program_id = fr.fest_program_id
+          JOIN fest_participants p3 ON r3.fest_participant_id = p3.id 
+            AND p3.fest_team_id = winner_part.fest_team_id
+          WHERE fp.category ILIKE '%general%'
+          AND fr.published_at IS NOT NULL
+          AND p3.student_id = $1
+        ),
+        redeemed AS (
+          SELECT COALESCE(SUM(amount), 0) as total_redeemed
+          FROM fest_award_redemptions
+          WHERE student_id = $1
+        )
+        SELECT 
+          ((SELECT points FROM individual_points) + (SELECT points FROM general_points)) * 10 
+          - (SELECT total_redeemed FROM redeemed) as remaining_balance
+      `, [student_id]);
+
+      const remainingBalance = parseFloat(balanceRows[0]?.remaining_balance || '0');
+
+      if (amount > remainingBalance) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ 
+          error: `Insufficient balance. Available: ₹${remainingBalance.toFixed(2)}, Requested: ₹${parseFloat(amount).toFixed(2)}` 
+        });
+      }
+
+      const { rows } = await client.query(
+        `INSERT INTO fest_award_redemptions (student_id, description, amount, note, redeemed_by)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, description, amount, note, created_at`,
+        [student_id, description, amount, note || null, userId]
+      );
+
+      await client.query('COMMIT');
+      res.json({ success: true, transaction: rows[0], new_balance: remainingBalance - parseFloat(amount) });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error('Award redeem error:', err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// DELETE undo a redemption
+router.delete('/award-point/redeem/:id', authenticate, authorize('award_point', 'admin'), async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `DELETE FROM fest_award_redemptions WHERE id = $1 RETURNING id`,
+      [req.params.id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Award undo error:', err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// ==========================================
+// MEDIA ROUTES (Read-only view of verified results)
+// ==========================================
+
+router.get('/media/results', authenticate, authorize('media', 'admin'), async (req, res) => {
+  try {
+    const eventType = req.query.event_type || 'MAIN';
+    const { rows } = await pool.query(
+      `SELECT p.id, p.title, p.category, p.sequence_number,
+        CASE WHEN EXISTS (SELECT 1 FROM fest_results r WHERE r.fest_program_id = p.id AND r.published_at IS NOT NULL) 
+          THEN true ELSE false END as is_published,
+        (
+          SELECT json_agg(json_build_object(
+            'position', g.position,
+            'points', g.points,
+            'student_name', g.student_name,
+            'team_name', g.team_name,
+            'grade', g.grade,
+            'chest_number', g.chest_number
+          ) ORDER BY g.position ASC)
+          FROM (
+            SELECT r.position, MAX(r.points) as points, string_agg(s.name, ', ') as student_name, 
+                   t.name as team_name, MAX(r.grade) as grade, string_agg(part.chest_number, ', ') as chest_number
+            FROM fest_results r
+            JOIN fest_registrations reg ON r.fest_registration_id = reg.id
+            JOIN fest_participants part ON reg.fest_participant_id = part.id
+            JOIN students s ON part.student_id = s.id
+            JOIN fest_teams t ON part.fest_team_id = t.id
+            WHERE r.fest_program_id = p.id
+            GROUP BY r.position, t.name
+          ) g
+        ) as winners
+       FROM fest_programs p 
+       WHERE p.event_type = $1 
+       AND EXISTS (SELECT 1 FROM fest_results WHERE fest_program_id = p.id)
+       ORDER BY p.sequence_number ASC NULLS LAST, p.id ASC`, [eventType]
+    );
+    res.json(rows);
+  } catch (err: any) {
+    console.error('Media results error:', err);
     res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 
 export default router;
+
