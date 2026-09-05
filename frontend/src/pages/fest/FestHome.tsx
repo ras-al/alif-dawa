@@ -675,7 +675,7 @@ const FestHome = () => {
                             </div>
 
                             <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                              {group.results.filter(r => r.position <= 3).map((res, wIdx) => (
+                              {group.results.filter(r => r.position <= 3).map((res) => (
                                 <div key={res.id} className="bg-white border-[3px] border-[#111111] shadow-[4px_4px_0_#111111] flex flex-col h-full">
                                   <div className="p-4 border-b-[3px] border-[#111111] flex justify-between items-center bg-[#F2F0E9]">
                                     <span className={`inline-flex flex-shrink-0 items-center justify-center w-12 h-12 font-black text-2xl border-[3px] border-[#111111] ${res.position === 1 ? 'bg-[#7A0C1E] text-white shadow-[3px_3px_0_#111111]' : 'bg-white text-[#111111] shadow-[3px_3px_0_#7A0C1E]'}`}>
