@@ -5,6 +5,7 @@ export interface WinnerEntry {
   student_name: string;
   team_name: string;
   position?: number;
+  is_group?: boolean;
 }
 
 export interface EventPosterData {
@@ -12,10 +13,11 @@ export interface EventPosterData {
   program_title: string;
   category: string;
   sequence_number?: number;
+  is_group?: boolean;
   first_place?: WinnerEntry;
   second_place?: WinnerEntry;
   third_place?: WinnerEntry;
-  results?: Array<WinnerEntry & { position: number; id?: number }>;
+  results?: Array<WinnerEntry & { position: number; id?: number; is_group?: boolean }>;
   // Fallback for legacy single-winner objects
   student_name?: string;
   team_name?: string;
@@ -124,6 +126,32 @@ export function usePosterGenerator() {
       const cleanTitle = (val?: string) => (val || '').replace(/^[▶►>•\s\-_–—:]+/, '').trim();
       const cleanCategory = (val?: string) => (val || '').replace(/^[▶►>•\s\-_–—:]+/, '').trim();
 
+      // Check whether this event is a group event
+      const isGroup = Boolean(
+        data.is_group ||
+        (first as any)?.is_group ||
+        (second as any)?.is_group ||
+        (third as any)?.is_group ||
+        data.results?.some((r: any) => r.is_group)
+      );
+
+      const getWinnerDisplayName = (w?: any) => {
+        if (!w) return '';
+        if (isGroup) {
+          return cleanString(w.team_name || w.student_name);
+        }
+        return cleanString(w.student_name);
+      };
+
+      const getWinnerTeamDisplay = (w?: any) => {
+        if (!w) return '';
+        if (isGroup) {
+          // For group events, the team name is already shown as the primary winner name
+          return '';
+        }
+        return cleanString(w.team_name);
+      };
+
       const dataMapping: Record<string, string> = {
         // Event details - guaranteed constant left margin without prefixes or spaces
         category: cleanCategory(data.category),
@@ -133,22 +161,22 @@ export function usePosterGenerator() {
 
         // 1st Place
         first_place_pos: first ? '1' : '',
-        first_place_name: cleanString(first?.student_name),
-        first_place_team: cleanString(first?.team_name),
+        first_place_name: getWinnerDisplayName(first),
+        first_place_team: getWinnerTeamDisplay(first),
         // legacy aliases:
-        student_name: cleanString(first?.student_name),
-        team_name: cleanString(first?.team_name),
+        student_name: getWinnerDisplayName(first),
+        team_name: getWinnerTeamDisplay(first),
         position: first ? '1' : '',
 
         // 2nd Place
         second_place_pos: second ? '2' : '',
-        second_place_name: cleanString(second?.student_name),
-        second_place_team: cleanString(second?.team_name),
+        second_place_name: getWinnerDisplayName(second),
+        second_place_team: getWinnerTeamDisplay(second),
 
         // 3rd Place
         third_place_pos: third ? '3' : '',
-        third_place_name: cleanString(third?.student_name),
-        third_place_team: cleanString(third?.team_name),
+        third_place_name: getWinnerDisplayName(third),
+        third_place_team: getWinnerTeamDisplay(third),
       };
 
       const config = template.config || {};

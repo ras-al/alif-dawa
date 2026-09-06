@@ -124,7 +124,12 @@ export default function AnnouncerDashboard() {
                   {index === 0 && <strong>1st Place: </strong>}
                   {index === 1 && <strong>2nd Place: </strong>}
                   {index === 2 && <strong>3rd Place: </strong>}
-                  {w.code_letter ? `[Code ${w.code_letter}] ` : ''}{w.student_name} <span className="text-slate-400">({w.team_name} - {w.points} pts{w.grade ? ` - Grade: ${w.grade}` : ''})</span>
+                  {w.code_letter ? `[Code ${w.code_letter}] ` : ''}
+                  {p.is_group ? (
+                    <><strong>Team {w.team_name}</strong> <span className="text-slate-400">({w.points} pts{w.grade ? ` - Grade: ${w.grade}` : ''})</span></>
+                  ) : (
+                    <>{w.student_name} <span className="text-slate-400">({w.team_name} - {w.points} pts{w.grade ? ` - Grade: ${w.grade}` : ''})</span></>
+                  )}
                 </div>
               ))}
             </div>
@@ -160,7 +165,12 @@ export default function AnnouncerDashboard() {
                   {index === 0 && <strong>1st Place: </strong>}
                   {index === 1 && <strong>2nd Place: </strong>}
                   {index === 2 && <strong>3rd Place: </strong>}
-                  {w.code_letter ? `[Code ${w.code_letter}] ` : ''}{w.student_name} <span className="text-slate-400">({w.team_name} - {w.points} pts{w.grade ? ` - Grade: ${w.grade}` : ''})</span>
+                  {w.code_letter ? `[Code ${w.code_letter}] ` : ''}
+                  {p.is_group ? (
+                    <><strong>Team {w.team_name}</strong> <span className="text-slate-400">({w.points} pts{w.grade ? ` - Grade: ${w.grade}` : ''})</span></>
+                  ) : (
+                    <>{w.student_name} <span className="text-slate-400">({w.team_name} - {w.points} pts{w.grade ? ` - Grade: ${w.grade}` : ''})</span></>
+                  )}
                 </div>
               ))}
             </div>

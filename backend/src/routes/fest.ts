@@ -887,6 +887,50 @@ router.get('/green-room/program/:programId', authorize('green_room', 'admin'), a
     }
 });
 
+// Helper: Calculate fest grade from average mark
+// Grade Level:
+// 90/100 -> A+
+// 70/89  -> A
+// 60/69  -> B
+// 50/59  -> C
+export function calculateFestGrade(avg: number | null | undefined): string | null {
+  if (avg === null || avg === undefined) return null;
+  const mark = Number(avg);
+  if (isNaN(mark)) return null;
+  if (mark >= 90) return 'A+';
+  if (mark >= 70) return 'A';
+  if (mark >= 60) return 'B';
+  if (mark >= 50) return 'C';
+  return null;
+}
+
+// Helper: Calculate fest points from grade, position, and category
+// Student category (Premier, Junior, Senior, Stage, Off-Stage): A+=5, A=3, B=2, C=1
+// General category (General, General Stage, General Off-Stage): A+=15, A=13, B=11, C=9
+// Position points (in addition to grade): 1st=3, 2nd=2, 3rd=1
+export function calculateFestPoints(grade: string | null, position: number, category: string): number {
+  const isGeneral = Boolean(category && category.trim().toLowerCase().includes('general'));
+  let gradePoints = 0;
+  if (isGeneral) {
+    if (grade === 'A+') gradePoints = 15;
+    else if (grade === 'A') gradePoints = 13;
+    else if (grade === 'B') gradePoints = 11;
+    else if (grade === 'C') gradePoints = 9;
+  } else {
+    if (grade === 'A+') gradePoints = 5;
+    else if (grade === 'A') gradePoints = 3;
+    else if (grade === 'B') gradePoints = 2;
+    else if (grade === 'C') gradePoints = 1;
+  }
+
+  let posPoints = 0;
+  if (position === 1) posPoints = 3;
+  else if (position === 2) posPoints = 2;
+  else if (position === 3) posPoints = 1;
+
+  return gradePoints + posPoints;
+}
+
 router.post('/green-room/verify', authorize('green_room', 'admin'), async (req, res) => {
   const { program_id, results } = req.body;
   // results should be array of { registration_id, position, points, grade }
@@ -903,18 +947,23 @@ router.post('/green-room/verify', authorize('green_room', 'admin'), async (req, 
       `);
       const hasGrade = colCheck.rows.length > 0;
 
+      const progRes = await client.query(`SELECT category FROM fest_programs WHERE id = $1`, [program_id]);
+      const category = progRes.rows[0]?.category || '';
+
       for (const r of results) {
+          const expectedPts = calculateFestPoints(r.grade || null, r.position, category);
+          const finalPoints = expectedPts > 0 || r.points === undefined ? expectedPts : r.points;
           if (hasGrade) {
               await client.query(
                   `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points, grade, published_at)
                    VALUES ($1, $2, $3, $4, $5, NULL)`,
-                  [program_id, r.registration_id, r.position, r.points, r.grade]
+                  [program_id, r.registration_id, r.position, finalPoints, r.grade]
               );
           } else {
               await client.query(
                   `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points, published_at)
                    VALUES ($1, $2, $3, $4, NULL)`,
-                  [program_id, r.registration_id, r.position, r.points]
+                  [program_id, r.registration_id, r.position, finalPoints]
               );
           }
       }
@@ -970,12 +1019,53 @@ router.post('/green-room/programs/:programId/undo-verify', authorize('green_room
   }
 });
 
+// Recalculate and synchronize all results points and grades based on marks and category
+router.post('/admin/recalculate-all-results', authorize('admin'), async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT 
+        r.id as result_id,
+        r.position,
+        p.category as program_category,
+        ROUND(AVG(m.mark::numeric), 2) as avg_mark
+      FROM fest_results r
+      JOIN fest_programs p ON r.fest_program_id = p.id
+      JOIN fest_registrations reg ON r.fest_registration_id = reg.id
+      LEFT JOIN fest_marks m ON reg.id = m.fest_registration_id
+      GROUP BY r.id, r.position, p.category
+    `);
+
+    let updated = 0;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const row of rows) {
+        const grade = calculateFestGrade(row.avg_mark);
+        const points = calculateFestPoints(grade, row.position, row.program_category);
+        await client.query(
+          `UPDATE fest_results SET points = $1, grade = $2 WHERE id = $3`,
+          [points, grade, row.result_id]
+        );
+        updated++;
+      }
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+
+    res.json({ success: true, updatedCount: updated });
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
 // Announcer Routes
 router.get('/announcer/pending', authorize('announcer', 'admin'), async (req, res) => {
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT p.id, p.title, p.category, p.sequence_number,
+      `SELECT p.id, p.title, p.category, p.sequence_number, p.is_group,
         (
           SELECT json_agg(json_build_object(
             'position', g.position,
@@ -1044,7 +1134,7 @@ router.get('/announcer/published', authorize('announcer', 'admin'), async (req, 
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT p.id, p.title, p.category, p.sequence_number,
+      `SELECT p.id, p.title, p.category, p.sequence_number, p.is_group,
         (SELECT MAX(published_at) FROM fest_results r WHERE r.fest_program_id = p.id) as published_at,
         (
           SELECT json_agg(json_build_object(
@@ -1069,7 +1159,7 @@ router.get('/announcer/published', authorize('announcer', 'admin'), async (req, 
        FROM fest_programs p
        JOIN fest_results r ON p.id = r.fest_program_id
        WHERE r.published_at IS NOT NULL AND p.event_type = $1
-       GROUP BY p.id, p.title, p.category, p.sequence_number
+       GROUP BY p.id, p.title, p.category, p.sequence_number, p.is_group
        ORDER BY published_at DESC`, [eventType]
     );
     res.json(rows);
@@ -1421,7 +1511,7 @@ router.get('/leader/dashboard', authenticate, authorize('leader'), async (req: A
 
     // Get team results
     const resultsRes = await pool.query(
-      `SELECT r.position, r.points, pr.title as program_title, pr.category, s.name as student_name, p.chest_number
+      `SELECT r.position, r.points, pr.title as program_title, pr.category, pr.is_group, s.name as student_name, p.chest_number
        FROM fest_results r
        JOIN fest_registrations reg ON r.fest_registration_id = reg.id
        JOIN fest_participants p ON reg.fest_participant_id = p.id
@@ -2151,7 +2241,7 @@ router.get('/media/results', authenticate, authorize('media', 'admin'), async (r
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT p.id, p.title, p.category, p.sequence_number,
+      `SELECT p.id, p.title, p.category, p.sequence_number, p.is_group,
         CASE WHEN EXISTS (SELECT 1 FROM fest_results r WHERE r.fest_program_id = p.id AND r.published_at IS NOT NULL) 
           THEN true ELSE false END as is_published,
         (

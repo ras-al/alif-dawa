@@ -84,7 +84,7 @@ const FestHome = () => {
     setTimeout(() => setCopiedNotification(null), 3000);
   };
 
-  const openPosterModal = async (group: { title: string; category: string; sequence_number?: number; results: Result[] }) => {
+  const openPosterModal = async (group: { title: string; category: string; sequence_number?: number; is_group?: boolean; results: Result[] }) => {
     if (!hasTemplate) {
       alert('No poster template has been configured in the Admin page yet.');
       return;
@@ -109,6 +109,7 @@ const FestHome = () => {
       program_title: group.title,
       category: group.category,
       sequence_number: group.sequence_number,
+      is_group: group.is_group,
       results: group.results,
     });
 
@@ -130,7 +131,11 @@ const FestHome = () => {
     const resPrefix = group.sequence_number ? `Result #${String(group.sequence_number).padStart(3, '0')} - ` : '';
     const winnersText = group.results
       .filter((r: Result) => r.position <= 3)
-      .map((r: Result) => `${r.position === 1 ? '🥇 1st' : r.position === 2 ? '🥈 2nd' : '🥉 3rd'}: ${r.student_name} (${r.team_name} - ${r.points} PTS)`)
+      .map((r: Result) => {
+        const isGrp = r.is_group ?? group.is_group;
+        const displayName = isGrp ? r.team_name : `${r.student_name} (${r.team_name})`;
+        return `${r.position === 1 ? '🥇 1st' : r.position === 2 ? '🥈 2nd' : '🥉 3rd'}: ${displayName} - ${r.points} PTS`;
+      })
       .join('\n');
     
     const text = `🏆 ${resPrefix}${group.title} (${group.category})\nAlif Dawa Fest Results:\n\n${winnersText}\n\nView live results: ${window.location.href}`;
@@ -585,10 +590,19 @@ const FestHome = () => {
                     // Group by program_title + category
                     const grouped = filtered.reduce((acc, res) => {
                       const key = `${res.program_title} - ${res.category}`;
-                      if (!acc[key]) acc[key] = { title: res.program_title, category: res.category, sequence_number: res.sequence_number, results: [] };
+                      if (!acc[key]) {
+                        acc[key] = {
+                          title: res.program_title,
+                          category: res.category,
+                          sequence_number: res.sequence_number,
+                          is_group: Boolean(res.is_group),
+                          results: []
+                        };
+                      }
+                      if (res.is_group) acc[key].is_group = true;
                       acc[key].results.push(res);
                       return acc;
-                    }, {} as Record<string, { title: string, category: string, sequence_number?: number, results: Result[] }>);
+                    }, {} as Record<string, { title: string, category: string, sequence_number?: number, is_group?: boolean, results: Result[] }>);
 
                     const groupList = Object.values(grouped).sort((a, b) => {
                       const seqA = a.sequence_number ?? 0;
@@ -694,8 +708,18 @@ const FestHome = () => {
                                   </div>
                                   <div className="p-4 flex-grow flex flex-col justify-between">
                                     <div>
-                                      <h4 className="font-black text-xl uppercase tracking-wider mb-1">{res.student_name}</h4>
-                                      <p className="text-sm font-bold text-[#7A0C1E] uppercase leading-snug">{res.team_name}</p>
+                                      <h4 className="font-black text-xl uppercase tracking-wider mb-1">
+                                        {(res.is_group ?? group.is_group) ? res.team_name : res.student_name}
+                                      </h4>
+                                      {(res.is_group ?? group.is_group) ? (
+                                        <p className="text-xs font-bold text-[#7A0C1E] uppercase tracking-widest leading-snug">
+                                          Group / Team
+                                        </p>
+                                      ) : (
+                                        <p className="text-sm font-bold text-[#7A0C1E] uppercase leading-snug">
+                                          {res.team_name}
+                                        </p>
+                                      )}
                                     </div>
 
                                     {/* Action buttons for Official Event Poster */}
@@ -720,6 +744,7 @@ const FestHome = () => {
                                             program_title: group.title,
                                             category: group.category,
                                             sequence_number: group.sequence_number,
+                                            is_group: group.is_group,
                                             results: group.results,
                                           });
                                           showNotification(`${group.title} poster downloaded!`);
@@ -741,7 +766,14 @@ const FestHome = () => {
                                 <ul className="space-y-1.5">
                                   {group.results.filter(r => r.position > 3).map((res) => (
                                     <li key={res.id} className="text-sm font-bold uppercase flex justify-between border-b border-[#111111]/10 pb-1 last:border-0">
-                                      <span><span className="text-slate-500 mr-2">#{res.position}</span> {res.student_name} <span className="text-[#111111]/60">({res.team_name})</span></span>
+                                      <span>
+                                        <span className="text-slate-500 mr-2">#{res.position}</span>
+                                        {(res.is_group ?? group.is_group) ? (
+                                          <span>{res.team_name}</span>
+                                        ) : (
+                                          <span>{res.student_name} <span className="text-[#111111]/60">({res.team_name})</span></span>
+                                        )}
+                                      </span>
                                       <span className="flex items-center gap-2">
                                         {res.grade && <span className="text-[#7A0C1E]">{res.grade}</span>}
                                         <span>{res.points} PTS</span>

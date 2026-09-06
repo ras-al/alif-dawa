@@ -26,7 +26,7 @@ interface DashboardData {
     event_type?: 'MAIN' | 'HIFZ';
   };
   participants: { id: number; chest_number: string; student_name: string; category?: string }[];
-  results: { id: number; position: number; points: number; program_title: string; category: string; student_name: string; chest_number: string; team_name: string }[];
+  results: { id: number; position: number; points: number; program_title: string; category: string; student_name: string; chest_number: string; team_name: string; is_group?: boolean }[];
   live_programs: { id: number; title: string; category: string; status: string }[];
   leaderboard: { id: number; team_name: string; total_points: number }[];
   notifications?: { id: number; type: string; data: any; timestamp?: string }[];
@@ -435,7 +435,7 @@ export default function LeaderDashboard() {
                                 'bg-orange-100 text-orange-700'
                             }`}>#{r.position}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-900 truncate">{r.student_name}</p>
+                            <p className="text-sm font-medium text-slate-900 truncate">{r.is_group ? data.team.name : r.student_name}</p>
                             <p className="text-xs text-slate-500">{r.program_title}</p>
                           </div>
                           <span className="text-sm font-bold text-emerald-700">+{r.points}</span>
@@ -622,14 +622,14 @@ export default function LeaderDashboard() {
                                 'bg-orange-100 text-orange-700'
                             }`}>#{r.position}</span>
                         </td>
-                        <td className="px-6 py-4 font-medium text-slate-900">{r.student_name} <span className="text-xs text-slate-400 font-mono">({r.chest_number})</span></td>
+                        <td className="px-6 py-4 font-medium text-slate-900">{r.is_group ? data.team.name : r.student_name} <span className="text-xs text-slate-400 font-mono">({r.chest_number})</span></td>
                         <td className="px-6 py-4 text-slate-600">{r.program_title}</td>
                         <td className="px-6 py-4"><span className="px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium">{r.category}</span></td>
                         <td className="px-6 py-4 text-right font-bold text-emerald-700">+{r.points}</td>
                         {hasTemplate && (
                           <td className="px-6 py-4 text-center">
                             <button 
-                              onClick={() => generatePoster({ ...r, team_name: data.team.name })} 
+                              onClick={() => generatePoster({ ...r, is_group: r.is_group, team_name: data.team.name })} 
                               disabled={loadingPosterId === r.id}
                               className="p-2 bg-[#14532D]/10 text-[#14532D] hover:bg-[#14532D] hover:text-white rounded-lg transition-colors inline-flex disabled:opacity-50"
                               title="Download Social Media Poster"

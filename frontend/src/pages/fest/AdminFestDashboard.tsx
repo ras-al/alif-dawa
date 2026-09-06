@@ -80,9 +80,24 @@ export default function AdminFestDashboard() {
   const [judgeAssignments, setJudgeAssignments] = useState([]);
   const [festSettings, setFestSettings] = useState<Record<string, string>>({});
   const [lockToggling, setLockToggling] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [eventType, setEventType] = useState<'MAIN' | 'HIFZ'>('MAIN');
+
+  const handleRecalculateAllResults = async () => {
+    if (!confirm('Recalculate points and grades for all verified/published results according to the official rules?\n\n- Student Category: A+=5, A=3, B=2, C=1\n- General Category: A+=15, A=13, B=11, C=9\n- Position Points: 1st=3, 2nd=2, 3rd=1')) return;
+    setRecalculating(true);
+    try {
+      const res = await api.post('/fest/admin/recalculate-all-results');
+      alert(`Success! Recalculated ${res.data.updatedCount || 0} result records.`);
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to recalculate results');
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Activity },
@@ -1161,14 +1176,36 @@ export default function AdminFestDashboard() {
           {activeTab === 'results' && (
             <div className="space-y-6">
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="p-4 sm:p-6 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-lg">Results ({results.length})</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      <span className="font-semibold text-emerald-800">Student Category:</span> A+=5, A=3, B=2, C=1 &nbsp;|&nbsp; 
+                      <span className="font-semibold text-amber-800">General Category:</span> A+=15, A=13, B=11, C=9 &nbsp;|&nbsp; 
+                      <span className="font-semibold text-slate-700">Positions:</span> 1st=3, 2nd=2, 3rd=1
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleRecalculateAllResults}
+                    disabled={recalculating}
+                    className="px-4 py-2 bg-[#14532D] text-white rounded-lg text-xs font-bold hover:bg-[#14532D]/90 transition-all flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+                    title="Recalculate points and grades for all verified results based on official rules"
+                  >
+                    <Activity size={14} className={recalculating ? 'animate-spin' : ''} />
+                    {recalculating ? 'Recalculating...' : '⚡ Recalculate & Sync All Points'}
+                  </button>
+                </div>
+
                 <div className="overflow-x-auto w-full max-w-full">
-                  <table className="w-full min-w-[550px] text-sm text-left">
-                    <thead className="bg-slate-50 border-b border-slate-200">
+                  <table className="w-full min-w-[650px] text-sm text-left">
+                    <thead className="bg-slate-50/50 border-b border-slate-200">
                       <tr>
                         <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Position</th>
                         <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Program</th>
                         <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Student Name</th>
                         <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider">Team</th>
+                        <th className="px-4 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider text-center">Grade</th>
+                        <th className="px-4 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider text-center">Points</th>
                         <th className="px-6 py-4 text-slate-700 font-semibold text-xs uppercase tracking-wider text-right">Status</th>
                       </tr>
                     </thead>
@@ -1180,15 +1217,35 @@ export default function AdminFestDashboard() {
                                 r.position === 2 ? 'bg-slate-200 text-slate-700' :
                                   'bg-orange-100 text-orange-700'
                               }`}>
-                              {r.position}
+                              #{r.position}
                             </span>
                           </td>
                           <td className="px-6 py-4">
                             <p className="font-bold text-slate-900">{r.program_title}</p>
-                            <p className="text-xs text-slate-500">{r.category}</p>
+                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded mt-0.5 inline-block ${
+                              r.category?.toLowerCase().includes('general') ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {r.category}
+                            </span>
                           </td>
                           <td className="px-6 py-4 font-medium text-slate-900">{r.student_name}</td>
                           <td className="px-6 py-4 text-slate-600">{r.team_name}</td>
+                          <td className="px-4 py-4 text-center">
+                            {r.grade ? (
+                              <span className={`px-2 py-0.5 rounded font-bold text-xs ${
+                                r.grade === 'A+' ? 'bg-emerald-600 text-white' :
+                                r.grade === 'A' ? 'bg-emerald-100 text-emerald-800' :
+                                r.grade === 'B' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {r.grade}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 font-medium">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 text-center font-bold text-[#14532D]">
+                            {r.points} PTS
+                          </td>
                           <td className="px-6 py-4 text-right">
                             {r.published_at ? (
                               <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase">Published</span>
@@ -1198,7 +1255,7 @@ export default function AdminFestDashboard() {
                           </td>
                         </tr>
                       ))}
-                      {results.length === 0 && <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">No results have been recorded yet.</td></tr>}
+                      {results.length === 0 && <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">No results have been recorded yet.</td></tr>}
                     </tbody>
                   </table>
                 </div>

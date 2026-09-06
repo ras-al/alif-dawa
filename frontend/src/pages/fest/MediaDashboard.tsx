@@ -16,6 +16,7 @@ interface MediaResult {
   title: string;
   category: string;
   sequence_number: number | null;
+  is_group?: boolean;
   is_published: boolean;
   winners: Winner[] | null;
 }
@@ -155,10 +156,21 @@ export default function MediaDashboard() {
                         {w.position === 1 ? '🥇' : w.position === 2 ? '🥈' : '🥉'}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{w.student_name}</p>
+                        <p className="text-sm font-semibold text-slate-900 truncate">
+                          {r.is_group ? `Team ${w.team_name}` : w.student_name}
+                        </p>
                         <p className="text-xs text-slate-500">
-                          {w.team_name}
-                          {w.chest_number && ` · Chest: ${w.chest_number}`}
+                          {r.is_group ? (
+                            <>
+                              <span className="font-medium text-indigo-700">Group Event</span>
+                              {w.chest_number && ` · Chest: ${w.chest_number}`}
+                            </>
+                          ) : (
+                            <>
+                              {w.team_name}
+                              {w.chest_number && ` · Chest: ${w.chest_number}`}
+                            </>
+                          )}
                         </p>
                       </div>
                       <div className="text-right flex-shrink-0">

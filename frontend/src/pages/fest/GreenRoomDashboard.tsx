@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '../../api/client';
 import { ClipboardCheck, Info } from 'lucide-react';
 
@@ -70,9 +70,16 @@ export default function GreenRoomDashboard() {
       avg: a.totalMark / a.count
     })).sort((a, b) => b.avg - a.avg);
 
-    // Calculate Grade Points
+    // Helper to determine if a category is General Category
+    const isGeneralCategory = (category: string) => {
+      return Boolean(category && category.trim().toLowerCase().includes('general'));
+    };
+
+    // Calculate Grade Points:
+    // Student Category: A+=5, A=3, B=2, C=1
+    // General Category: A+=15, A=13, B=11, C=9
     const getGradePoints = (avg: number, category: string) => {
-      const isGeneral = category === 'General';
+      const isGeneral = isGeneralCategory(category);
       if (avg >= 90) return isGeneral ? 15 : 5; // A+
       if (avg >= 70) return isGeneral ? 13 : 3; // A
       if (avg >= 60) return isGeneral ? 11 : 2; // B
@@ -80,7 +87,7 @@ export default function GreenRoomDashboard() {
       return 0;
     };
 
-    // Calculate Position Points
+    // Calculate Position Points: 1st: 3, 2nd: 2, 3rd: 1
     const getPositionPoints = (position: number) => {
       if (position === 1) return 3;
       if (position === 2) return 2;
@@ -97,8 +104,12 @@ export default function GreenRoomDashboard() {
       return null;
     };
 
+    let currentRank = 1;
     const results = sortedRegistrations.map((s, idx) => {
-      const position = idx + 1;
+      if (idx > 0 && s.avg < sortedRegistrations[idx - 1].avg) {
+        currentRank = idx + 1;
+      }
+      const position = currentRank;
       const gradePoints = getGradePoints(s.avg, selectedProgram.category);
       const positionPoints = getPositionPoints(position);
       const totalPoints = gradePoints + positionPoints;
@@ -146,6 +157,58 @@ export default function GreenRoomDashboard() {
       alert('Failed to undo verification');
     }
   };
+
+  const previewResults = useMemo(() => {
+    if (!selectedProgram || !marksData.length) return [];
+    const aggregated: Record<number, { registration_id: number; code_letter: string; chest_number: string; team_name: string; totalMark: number; count: number; avg: number }> = {};
+    marksData.forEach((m: any) => {
+      if (!m.mark) return;
+      const regId = m.registration_id;
+      if (!aggregated[regId]) {
+        aggregated[regId] = {
+          registration_id: regId,
+          code_letter: m.code_letter,
+          chest_number: m.chest_number,
+          team_name: m.team_name,
+          totalMark: 0,
+          count: 0,
+          avg: 0
+        };
+      }
+      aggregated[regId].totalMark += parseFloat(m.mark) || 0;
+      aggregated[regId].count += 1;
+    });
+
+    const isGeneral = Boolean(selectedProgram.category && selectedProgram.category.trim().toLowerCase().includes('general'));
+    const sorted = Object.values(aggregated).map(a => ({
+      ...a,
+      avg: a.totalMark / a.count
+    })).sort((a, b) => b.avg - a.avg);
+
+    let currentRank = 1;
+    return sorted.map((s, idx) => {
+      if (idx > 0 && s.avg < sorted[idx - 1].avg) {
+        currentRank = idx + 1;
+      }
+      const position = currentRank;
+      let grade: string | null = null;
+      let gradePoints = 0;
+      if (s.avg >= 90) { grade = 'A+'; gradePoints = isGeneral ? 15 : 5; }
+      else if (s.avg >= 70) { grade = 'A'; gradePoints = isGeneral ? 13 : 3; }
+      else if (s.avg >= 60) { grade = 'B'; gradePoints = isGeneral ? 11 : 2; }
+      else if (s.avg >= 50) { grade = 'C'; gradePoints = isGeneral ? 9 : 1; }
+
+      const posPoints = position === 1 ? 3 : position === 2 ? 2 : position === 3 ? 1 : 0;
+      return {
+        ...s,
+        position,
+        grade,
+        gradePoints,
+        posPoints,
+        totalPoints: gradePoints + posPoints
+      };
+    });
+  }, [selectedProgram, marksData]);
 
   return (
     <div>
@@ -270,26 +333,113 @@ export default function GreenRoomDashboard() {
       ) : (
         <div>
            <button onClick={() => setSelectedProgram(null)} className="text-sm text-slate-500 hover:text-slate-900 mb-4">← Back</button>
-           <div className="bg-white rounded-lg border border-slate-200 p-6">
-             <h2 className="text-xl font-bold mb-4">{selectedProgram.title} - Raw Marks</h2>
-             <div className="space-y-2 mb-6">
-               {marksData.map((m: any, i) => (
-                 <div key={i} className="flex justify-between p-3 bg-slate-50 rounded border border-slate-100">
-                   <div>
-                     <span className="font-semibold text-slate-900">Code {m.code_letter}</span>
-                     <span className="text-slate-500 text-xs ml-2">Chest: {m.chest_number} | {m.team_name}</span>
-                   </div>
-                   <div className="text-right">
-                     <span className="text-sm text-slate-500 mr-4">Judge: {m.judge_name}</span>
-                     <span className="font-bold text-[#14532D]">{m.mark}</span>
-                   </div>
-                 </div>
-               ))}
-             </div>
-             <button onClick={handleVerify} className="px-6 py-2 bg-[#14532D] text-white rounded-md font-medium hover:bg-[#14532D]/90 flex items-center gap-2">
-               <ClipboardCheck size={18} /> Approve & Forward to Announcer
-             </button>
-           </div>
+            <div className="bg-white rounded-lg border border-slate-200 p-6">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">{selectedProgram.title}</h2>
+                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded bg-slate-100 text-slate-700">{selectedProgram.category}</span>
+                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded ${
+                      selectedProgram.category?.toLowerCase().includes('general') 
+                        ? 'bg-amber-100 text-amber-900 border border-amber-300' 
+                        : 'bg-emerald-100 text-[#14532D] border border-emerald-300'
+                    }`}>
+                      {selectedProgram.category?.toLowerCase().includes('general')
+                        ? '🌟 General Category (A+=15, A=13, B=11, C=9)'
+                        : '🎓 Student Category (A+=5, A=3, B=2, C=1)'}
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium">+ Pos Pts: 1st=3, 2nd=2, 3rd=1</span>
+                  </div>
+                </div>
+                <button onClick={handleVerify} className="px-6 py-2.5 bg-[#14532D] text-white rounded-lg font-bold hover:bg-[#14532D]/90 flex items-center gap-2 shadow-sm cursor-pointer self-start sm:self-auto transition-all">
+                  <ClipboardCheck size={18} /> Approve & Forward to Announcer
+                </button>
+              </div>
+
+              {/* Calculated Results Preview Table */}
+              {previewResults.length > 0 && (
+                <div className="mb-6 border border-emerald-200 bg-emerald-50/50 rounded-xl p-4">
+                  <h3 className="text-xs font-bold text-[#14532D] uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                    Calculated Results Preview (Positions & Points)
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead>
+                        <tr className="border-b border-emerald-200 text-slate-600">
+                          <th className="pb-2 font-bold">Pos</th>
+                          <th className="pb-2 font-bold">Code</th>
+                          <th className="pb-2 font-bold">Chest / Team</th>
+                          <th className="pb-2 font-bold text-center">Avg Mark</th>
+                          <th className="pb-2 font-bold text-center">Grade</th>
+                          <th className="pb-2 font-bold text-center">Grade Pts</th>
+                          <th className="pb-2 font-bold text-center">Pos Pts</th>
+                          <th className="pb-2 font-bold text-right">Total Points</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-emerald-100">
+                        {previewResults.map((r: any) => (
+                          <tr key={r.registration_id} className={r.position <= 3 ? 'font-semibold' : 'text-slate-600'}>
+                            <td className="py-2.5">
+                              <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                                r.position === 1 ? 'bg-[#7A0C1E] text-white' :
+                                r.position === 2 ? 'bg-slate-300 text-slate-800' :
+                                r.position === 3 ? 'bg-amber-600 text-white' : 'text-slate-400'
+                              }`}>
+                                #{r.position}
+                              </span>
+                            </td>
+                            <td className="py-2.5 font-mono font-bold text-slate-800">{r.code_letter}</td>
+                            <td className="py-2.5">
+                              <span className="text-slate-900 font-bold">{r.chest_number}</span>
+                              <span className="text-slate-500 ml-1.5 font-normal">({r.team_name})</span>
+                            </td>
+                            <td className="py-2.5 text-center font-mono font-bold">{r.avg.toFixed(2)}</td>
+                            <td className="py-2.5 text-center">
+                              {r.grade ? (
+                                <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${
+                                  r.grade === 'A+' ? 'bg-emerald-600 text-white' :
+                                  r.grade === 'A' ? 'bg-emerald-100 text-emerald-800' :
+                                  r.grade === 'B' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                  {r.grade}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 font-normal">-</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 text-center text-slate-600">{r.gradePoints} pts</td>
+                            <td className="py-2.5 text-center text-slate-600">+{r.posPoints} pts</td>
+                            <td className="py-2.5 text-right font-bold text-[#14532D] text-sm">
+                              {r.totalPoints} PTS
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Raw Judge Marks</h3>
+              <div className="space-y-2 mb-6">
+                {marksData.map((m: any, i) => (
+                  <div key={i} className="flex justify-between p-3 bg-slate-50 rounded border border-slate-100">
+                    <div>
+                      <span className="font-semibold text-slate-900">Code {m.code_letter}</span>
+                      <span className="text-slate-500 text-xs ml-2">Chest: {m.chest_number} | {m.team_name}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm text-slate-500 mr-4">Judge: {m.judge_name}</span>
+                      <span className="font-bold text-[#14532D]">{m.mark}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button onClick={handleVerify} className="px-6 py-2.5 bg-[#14532D] text-white rounded-lg font-bold hover:bg-[#14532D]/90 flex items-center gap-2 shadow-sm cursor-pointer">
+                <ClipboardCheck size={18} /> Approve & Forward to Announcer
+              </button>
+            </div>
         </div>
       )}
     </div>
