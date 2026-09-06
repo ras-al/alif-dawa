@@ -1,25 +1,29 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../../api/client';
-import { ClipboardCheck, Info } from 'lucide-react';
+import { ClipboardCheck, Info, Megaphone, AlertTriangle, Unlock } from 'lucide-react';
 
 export default function GreenRoomDashboard() {
-  const [activeTab, setActiveTab] = useState<'pending' | 'verified'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'verified' | 'unmarked'>('pending');
   const [verifiedPrograms, setVerifiedPrograms] = useState([]);
   const [pendingPrograms, setPendingPrograms] = useState([]);
+  const [unmarkedPrograms, setUnmarkedPrograms] = useState<any[]>([]);
   const [selectedProgram, setSelectedProgram] = useState<any>(null);
   const [marksData, setMarksData] = useState([]);
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [eventType, setEventType] = useState<'MAIN' | 'HIFZ'>('MAIN');
+  const [publishingId, setPublishingId] = useState<number | null>(null);
 
   useEffect(() => {
     async function loadPrograms() {
       try {
-        const [pendRes, verRes] = await Promise.all([
+        const [pendRes, verRes, unRes] = await Promise.all([
           api.get(`/fest/green-room/pending?event_type=${eventType}`),
-          api.get(`/fest/green-room/verified?event_type=${eventType}`)
+          api.get(`/fest/green-room/verified?event_type=${eventType}`),
+          api.get(`/fest/green-room/unmarked?event_type=${eventType}`)
         ]);
         setPendingPrograms(pendRes.data);
         setVerifiedPrograms(verRes.data);
+        setUnmarkedPrograms(unRes.data);
       } catch (err) {
         console.error(err);
       }
@@ -122,12 +126,14 @@ export default function GreenRoomDashboard() {
       alert('Verified and sent to Announcer');
       setSelectedProgram(null);
       // reload
-      const [pendRes, verRes] = await Promise.all([
+      const [pendRes, verRes, unRes] = await Promise.all([
         api.get(`/fest/green-room/pending?event_type=${eventType}`),
-        api.get(`/fest/green-room/verified?event_type=${eventType}`)
+        api.get(`/fest/green-room/verified?event_type=${eventType}`),
+        api.get(`/fest/green-room/unmarked?event_type=${eventType}`)
       ]);
       setPendingPrograms(pendRes.data);
       setVerifiedPrograms(verRes.data);
+      setUnmarkedPrograms(unRes.data);
     } catch (err) {
       console.error(err);
       alert('Verification failed');
@@ -140,15 +146,56 @@ export default function GreenRoomDashboard() {
       await api.post(`/fest/green-room/programs/${programId}/undo-verify`);
       alert('Verification undone successfully!');
       // reload
-      const [pendRes, verRes] = await Promise.all([
+      const [pendRes, verRes, unRes] = await Promise.all([
         api.get(`/fest/green-room/pending?event_type=${eventType}`),
-        api.get(`/fest/green-room/verified?event_type=${eventType}`)
+        api.get(`/fest/green-room/verified?event_type=${eventType}`),
+        api.get(`/fest/green-room/unmarked?event_type=${eventType}`)
       ]);
       setPendingPrograms(pendRes.data);
       setVerifiedPrograms(verRes.data);
+      setUnmarkedPrograms(unRes.data);
     } catch (err) {
       console.error(err);
       alert('Failed to undo verification');
+    }
+  };
+
+  const handlePublish = async (programId: number) => {
+    if (!confirm('Publish this result to the public website immediately?')) return;
+    setPublishingId(programId);
+    try {
+      await api.post('/fest/announcer/publish', { program_id: programId });
+      alert('Result published successfully!');
+      const [pendRes, verRes, unRes] = await Promise.all([
+        api.get(`/fest/green-room/pending?event_type=${eventType}`),
+        api.get(`/fest/green-room/verified?event_type=${eventType}`),
+        api.get(`/fest/green-room/unmarked?event_type=${eventType}`)
+      ]);
+      setPendingPrograms(pendRes.data);
+      setVerifiedPrograms(verRes.data);
+      setUnmarkedPrograms(unRes.data);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to publish result');
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const handleUnlockJudging = async (programId: number) => {
+    if (!confirm('Unlock judging for this program? Judges will be able to enter marks in their Judge Dashboard.')) return;
+    try {
+      await api.post(`/fest/green-room/programs/${programId}/unlock`);
+      alert('Judging unlocked successfully! Judges can now submit marks.');
+      const [pendRes, verRes, unRes] = await Promise.all([
+        api.get(`/fest/green-room/pending?event_type=${eventType}`),
+        api.get(`/fest/green-room/verified?event_type=${eventType}`),
+        api.get(`/fest/green-room/unmarked?event_type=${eventType}`)
+      ]);
+      setPendingPrograms(pendRes.data);
+      setVerifiedPrograms(verRes.data);
+      setUnmarkedPrograms(unRes.data);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to unlock judging');
     }
   };
 
@@ -229,18 +276,25 @@ export default function GreenRoomDashboard() {
       {!selectedProgram ? (
         <div>
           {/* Tabs */}
-          <div className="flex border-b border-slate-200 mb-6">
+          <div className="flex border-b border-slate-200 mb-6 overflow-x-auto">
             <button 
               onClick={() => setActiveTab('pending')}
-              className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'pending' ? 'border-[#14532D] text-[#14532D]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+              className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'pending' ? 'border-[#14532D] text-[#14532D]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
             >
               Pending Verification ({pendingPrograms.length})
             </button>
             <button 
               onClick={() => setActiveTab('verified')}
-              className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'verified' ? 'border-[#14532D] text-[#14532D]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+              className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'verified' ? 'border-[#14532D] text-[#14532D]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
             >
               Approved Results ({verifiedPrograms.length})
+            </button>
+            <button 
+              onClick={() => setActiveTab('unmarked')}
+              className={`px-6 py-3 font-semibold text-sm transition-colors border-b-2 whitespace-nowrap flex items-center gap-1.5 ${activeTab === 'unmarked' ? 'border-amber-600 text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            >
+              {unmarkedPrograms.length > 0 && <AlertTriangle size={15} className="text-amber-500" />}
+              Missing Judge Marks ({unmarkedPrograms.length})
             </button>
           </div>
 
@@ -283,7 +337,7 @@ export default function GreenRoomDashboard() {
                 )}
               </tbody>
             </table>
-          ) : (
+          ) : activeTab === 'verified' ? (
             <table className="w-full min-w-[500px] text-sm">
               <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 text-left">
                 <tr>
@@ -309,9 +363,20 @@ export default function GreenRoomDashboard() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => handleUndoVerify(p.id)} className="text-rose-600 hover:underline font-medium text-xs">
-                        Undo Approval
-                      </button>
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        {!p.published_at && (
+                          <button
+                            onClick={() => handlePublish(p.id)}
+                            disabled={publishingId === p.id}
+                            className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            <Megaphone size={12} /> {publishingId === p.id ? 'Publishing...' : 'Publish Now'}
+                          </button>
+                        )}
+                        <button onClick={() => handleUndoVerify(p.id)} className="text-rose-600 hover:underline font-medium text-xs">
+                          Undo Approval
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -322,6 +387,71 @@ export default function GreenRoomDashboard() {
                 )}
               </tbody>
             </table>
+          ) : (
+            <div>
+              <div className="p-4 bg-amber-50/70 border-b border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+                <Info size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <strong>Why aren't these programs in Pending Verification?</strong>
+                  <p className="mt-0.5 text-amber-800">
+                    These competitions are marked as completed/judging, but <strong>no marks have been entered into the system</strong> by judges yet.
+                    Once judges enter their marks in the Judge Dashboard, the program will automatically appear under <strong>Pending Verification</strong>.
+                    If judging is locked, click <strong>Unlock for Judging</strong> to allow judges to submit marks.
+                  </p>
+                </div>
+              </div>
+              <table className="w-full min-w-[500px] text-sm">
+                <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 text-left">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Program</th>
+                    <th className="px-4 py-3 font-medium">Category</th>
+                    <th className="px-4 py-3 font-medium">Participants</th>
+                    <th className="px-4 py-3 font-medium">Assigned Judge(s)</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(unmarkedPrograms as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).map((p: any) => (
+                    <tr key={p.id} className="border-b border-slate-100 last:border-0">
+                      <td className="px-4 py-3 font-medium">{p.title}</td>
+                      <td className="px-4 py-3 text-slate-500">{p.category}</td>
+                      <td className="px-4 py-3 text-slate-500">{p.reg_count} students</td>
+                      <td className="px-4 py-3 text-slate-700 font-medium">
+                        {p.judges && p.judges.length > 0 ? p.judges.join(', ') : <span className="text-slate-400 italic">No judge assigned</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 bg-rose-50 text-rose-700 rounded text-xs font-semibold border border-rose-100">
+                          0 Marks Entered
+                        </span>
+                        {p.judging_locked && (
+                          <span className="ml-1.5 px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold">
+                            Locked
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {p.judging_locked ? (
+                          <button
+                            onClick={() => handleUnlockJudging(p.id)}
+                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-xs font-semibold flex items-center gap-1 cursor-pointer transition-all"
+                          >
+                            <Unlock size={12} /> Unlock for Judging
+                          </button>
+                        ) : (
+                          <span className="text-xs text-emerald-700 font-semibold">Ready for marks in Judge Dashboard</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {(unmarkedPrograms as any[]).filter(p => categoryFilter === 'All' || p.category === categoryFilter).length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-6 text-center text-slate-500">No unmarked programs{categoryFilter !== 'All' ? ` in ${categoryFilter}` : ''}.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
         </div>

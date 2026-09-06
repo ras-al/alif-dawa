@@ -896,6 +896,38 @@ router.get('/green-room/verified', authorize('green_room', 'admin'), async (req,
   }
 });
 
+router.get('/green-room/unmarked', authorize('green_room', 'admin'), async (req, res) => {
+  try {
+    const eventType = req.query.event_type || 'MAIN';
+    const { rows } = await pool.query(`
+      SELECT p.id, p.title, p.category, p.status, p.judging_locked,
+        (SELECT json_agg(judge_name) FROM fest_program_judges pj WHERE pj.fest_program_id = p.id) as judges,
+        COUNT(DISTINCT reg.id) as reg_count
+      FROM fest_programs p
+      JOIN fest_registrations reg ON p.id = reg.fest_program_id
+      WHERE p.event_type = $1 
+      AND (p.status IN ('completed', 'judging') OR p.judging_locked = true)
+      AND NOT EXISTS (
+        SELECT 1 FROM fest_marks m JOIN fest_registrations r2 ON m.fest_registration_id = r2.id WHERE r2.fest_program_id = p.id
+      )
+      GROUP BY p.id, p.title, p.category, p.status, p.judging_locked
+      ORDER BY p.title
+    `, [eventType]);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+router.post('/green-room/programs/:id/unlock', authorize('green_room', 'admin'), async (req, res) => {
+  try {
+    await pool.query(`UPDATE fest_programs SET judging_locked = false, status = 'judging' WHERE id = $1`, [req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
 router.get('/green-room/program/:programId', authorize('green_room', 'admin'), async (req, res) => {
     // Get all marks for a program
     const { programId } = req.params;
@@ -1143,7 +1175,7 @@ router.get('/announcer/pending', authorize('announcer', 'admin'), async (req, re
   }
 });
 
-router.post('/announcer/publish', authorize('announcer', 'admin'), async (req: AuthRequest, res) => {
+router.post('/announcer/publish', authorize('announcer', 'admin', 'green_room'), async (req: AuthRequest, res) => {
   const { program_id } = req.body;
   const userId = req.user?.id;
   try {
