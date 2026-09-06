@@ -311,7 +311,11 @@ export default function AwardPointDashboard() {
                             {Number(c.effective_points).toFixed(1)}
                           </td>
                           <td className="px-3 py-2.5 text-center">
-                            {c.grade && <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded">{c.grade}</span>}
+                            {c.grade && c.grade !== 'No Grade' ? (
+                              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded">{c.grade}</span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs font-semibold rounded border border-slate-200">No Grade</span>
+                            )}
                           </td>
                         </tr>
                       ))}

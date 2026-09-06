@@ -86,7 +86,7 @@ export default function AdminFestDashboard() {
   const [eventType, setEventType] = useState<'MAIN' | 'HIFZ'>('MAIN');
 
   const handleRecalculateAllResults = async () => {
-    if (!confirm('Recalculate points and grades for all verified/published results according to the official rules?\n\n- Student Category: A+=5, A=3, B=2, C=1\n- General Category: A+=15, A=13, B=11, C=9\n- Position Points: 1st=3, 2nd=2, 3rd=1')) return;
+    if (!confirm('Recalculate points and grades for all verified/published results according to the official rules?\n\n- Individual Competitions: A+=5, A=3, B=2, C=1\n- Group Competitions: A+=15, A=13, B=11, C=9\n- Position Points: 1st=3, 2nd=2, 3rd=1')) return;
     setRecalculating(true);
     try {
       const res = await api.post('/fest/admin/recalculate-all-results');
@@ -1227,8 +1227,8 @@ export default function AdminFestDashboard() {
                   <div>
                     <h3 className="font-bold text-slate-900 text-lg">Results ({results.length})</h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      <span className="font-semibold text-emerald-800">Student Category:</span> A+=5, A=3, B=2, C=1 &nbsp;|&nbsp; 
-                      <span className="font-semibold text-amber-800">General Category:</span> A+=15, A=13, B=11, C=9 &nbsp;|&nbsp; 
+                      <span className="font-semibold text-emerald-800">Individual:</span> A+=5, A=3, B=2, C=1 &nbsp;|&nbsp; 
+                      <span className="font-semibold text-amber-800">Group:</span> A+=15, A=13, B=11, C=9 &nbsp;|&nbsp; 
                       <span className="font-semibold text-slate-700">Positions:</span> 1st=3, 2nd=2, 3rd=1
                     </p>
                   </div>
@@ -1278,7 +1278,7 @@ export default function AdminFestDashboard() {
                           <td className="px-6 py-4 font-medium text-slate-900">{r.student_name}</td>
                           <td className="px-6 py-4 text-slate-600">{r.team_name}</td>
                           <td className="px-4 py-4 text-center">
-                            {r.grade ? (
+                            {r.grade && r.grade !== 'No Grade' ? (
                               <span className={`px-2 py-0.5 rounded font-bold text-xs ${
                                 r.grade === 'A+' ? 'bg-emerald-600 text-white' :
                                 r.grade === 'A' ? 'bg-emerald-100 text-emerald-800' :
@@ -1287,7 +1287,9 @@ export default function AdminFestDashboard() {
                                 {r.grade}
                               </span>
                             ) : (
-                              <span className="text-slate-400 font-medium">-</span>
+                              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold text-xs border border-slate-200">
+                                No Grade
+                              </span>
                             )}
                           </td>
                           <td className="px-4 py-4 text-center font-bold text-[#14532D]">

@@ -861,7 +861,7 @@ router.get('/green-room/pending', authorize('green_room', 'admin'), async (req, 
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT p.id, p.title, p.category 
+      `SELECT p.id, p.title, p.category, p.is_group 
        FROM fest_programs p
        WHERE p.event_type = $1 AND p.judging_locked = true AND EXISTS (
          SELECT 1 FROM fest_registrations reg
@@ -882,7 +882,7 @@ router.get('/green-room/verified', authorize('green_room', 'admin'), async (req,
   try {
     const eventType = req.query.event_type || 'MAIN';
     const { rows } = await pool.query(
-      `SELECT DISTINCT p.id, p.title, p.category, p.sequence_number,
+      `SELECT DISTINCT p.id, p.title, p.category, p.is_group, p.sequence_number,
         (SELECT MAX(published_at) FROM fest_results r WHERE r.fest_program_id = p.id) as published_at
        FROM fest_programs p
        JOIN fest_results r ON p.id = r.fest_program_id
@@ -929,25 +929,26 @@ router.get('/green-room/program/:programId', authorize('green_room', 'admin'), a
 // 70/89  -> A
 // 60/69  -> B
 // 50/59  -> C
-export function calculateFestGrade(avg: number | null | undefined): string | null {
-  if (avg === null || avg === undefined) return null;
+// <50    -> No Grade
+export function calculateFestGrade(avg: number | null | undefined): string {
+  if (avg === null || avg === undefined) return 'No Grade';
   const mark = Number(avg);
-  if (isNaN(mark)) return null;
+  if (isNaN(mark)) return 'No Grade';
   if (mark >= 90) return 'A+';
   if (mark >= 70) return 'A';
   if (mark >= 60) return 'B';
   if (mark >= 50) return 'C';
-  return null;
+  return 'No Grade';
 }
 
-// Helper: Calculate fest points from grade, position, and category
-// Student category (Premier, Junior, Senior, Stage, Off-Stage): A+=5, A=3, B=2, C=1
-// General category (General, General Stage, General Off-Stage): A+=15, A=13, B=11, C=9
+// Helper: Calculate fest points from grade, position, and group status
+// Individual competitions (is_group = false): A+=5, A=3, B=2, C=1
+// Group competitions (is_group = true): A+=15, A=13, B=11, C=9
 // Position points (in addition to grade): 1st=3, 2nd=2, 3rd=1
-export function calculateFestPoints(grade: string | null, position: number, category: string): number {
-  const isGeneral = Boolean(category && category.trim().toLowerCase().includes('general'));
+export function calculateFestPoints(grade: string | null, position: number, isGroup: boolean | string): number {
+  const isGroupBool = typeof isGroup === 'boolean' ? isGroup : Boolean(isGroup && String(isGroup).trim().toLowerCase().includes('general'));
   let gradePoints = 0;
-  if (isGeneral) {
+  if (isGroupBool) {
     if (grade === 'A+') gradePoints = 15;
     else if (grade === 'A') gradePoints = 13;
     else if (grade === 'B') gradePoints = 11;
@@ -983,17 +984,18 @@ router.post('/green-room/verify', authorize('green_room', 'admin'), async (req, 
       `);
       const hasGrade = colCheck.rows.length > 0;
 
-      const progRes = await client.query(`SELECT category FROM fest_programs WHERE id = $1`, [program_id]);
-      const category = progRes.rows[0]?.category || '';
+      const progRes = await client.query(`SELECT is_group FROM fest_programs WHERE id = $1`, [program_id]);
+      const isGroup = Boolean(progRes.rows[0]?.is_group);
 
       for (const r of results) {
-          const expectedPts = calculateFestPoints(r.grade || null, r.position, category);
+          const finalGrade = r.grade || 'No Grade';
+          const expectedPts = calculateFestPoints(finalGrade, r.position, isGroup);
           const finalPoints = expectedPts > 0 || r.points === undefined ? expectedPts : r.points;
           if (hasGrade) {
               await client.query(
                   `INSERT INTO fest_results (fest_program_id, fest_registration_id, position, points, grade, published_at)
                    VALUES ($1, $2, $3, $4, $5, NULL)`,
-                  [program_id, r.registration_id, r.position, finalPoints, r.grade]
+                  [program_id, r.registration_id, r.position, finalPoints, finalGrade]
               );
           } else {
               await client.query(
@@ -1055,20 +1057,21 @@ router.post('/green-room/programs/:programId/undo-verify', authorize('green_room
   }
 });
 
-// Recalculate and synchronize all results points and grades based on marks and category
+// Recalculate and synchronize all results points and grades based on marks and is_group
 router.post('/admin/recalculate-all-results', authorize('admin'), async (_req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT 
         r.id as result_id,
         r.position,
-        p.category as program_category,
+        r.grade as current_grade,
+        p.is_group,
         ROUND(AVG(m.mark::numeric), 2) as avg_mark
       FROM fest_results r
       JOIN fest_programs p ON r.fest_program_id = p.id
       JOIN fest_registrations reg ON r.fest_registration_id = reg.id
       LEFT JOIN fest_marks m ON reg.id = m.fest_registration_id
-      GROUP BY r.id, r.position, p.category
+      GROUP BY r.id, r.position, r.grade, p.is_group
     `);
 
     let updated = 0;
@@ -1076,8 +1079,10 @@ router.post('/admin/recalculate-all-results', authorize('admin'), async (_req, r
     try {
       await client.query('BEGIN');
       for (const row of rows) {
-        const grade = calculateFestGrade(row.avg_mark);
-        const points = calculateFestPoints(grade, row.position, row.program_category);
+        const grade = row.avg_mark !== null && row.avg_mark !== undefined
+          ? calculateFestGrade(row.avg_mark)
+          : row.current_grade;
+        const points = calculateFestPoints(grade, row.position, Boolean(row.is_group));
         await client.query(
           `UPDATE fest_results SET points = $1, grade = $2 WHERE id = $3`,
           [points, grade, row.result_id]

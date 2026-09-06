@@ -813,9 +813,13 @@ const FestHome = () => {
                                       #{res.position}
                                     </span>
                                     <div className="flex gap-1.5">
-                                      {res.grade && (
+                                      {res.grade && res.grade !== 'No Grade' ? (
                                         <span className="font-black px-2 py-1 bg-[#7A0C1E] text-white text-xs uppercase tracking-widest">
                                           {res.grade}
+                                        </span>
+                                      ) : (
+                                        <span className="font-bold px-2 py-1 bg-slate-200 text-slate-700 text-xs uppercase tracking-wider">
+                                          No Grade
                                         </span>
                                       )}
                                       <span className="font-black px-2 py-1 bg-[#111111] text-white text-xs uppercase tracking-widest">
@@ -892,7 +896,9 @@ const FestHome = () => {
                                         )}
                                       </span>
                                       <span className="flex items-center gap-2">
-                                        {res.grade && <span className="text-[#7A0C1E]">{res.grade}</span>}
+                                        <span className={res.grade && res.grade !== 'No Grade' ? "text-[#7A0C1E] font-bold" : "text-slate-500 font-normal text-xs"}>
+                                          {res.grade && res.grade !== 'No Grade' ? res.grade : 'No Grade'}
+                                        </span>
                                         <span>{res.points} PTS</span>
                                       </span>
                                     </li>

@@ -175,7 +175,7 @@ export default function MediaDashboard() {
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm font-bold text-[#14532D]">{w.points} pts</p>
-                        {w.grade && <p className="text-xs text-slate-500">Grade: {w.grade}</p>}
+                        <p className="text-xs text-slate-500">Grade: <span className="font-semibold text-slate-700">{w.grade && w.grade !== 'No Grade' ? w.grade : 'No Grade'}</span></p>
                       </div>
                     </div>
                   ))}

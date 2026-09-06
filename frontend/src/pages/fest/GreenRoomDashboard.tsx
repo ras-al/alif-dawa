@@ -70,20 +70,14 @@ export default function GreenRoomDashboard() {
       avg: a.totalMark / a.count
     })).sort((a, b) => b.avg - a.avg);
 
-    // Helper to determine if a category is General Category
-    const isGeneralCategory = (category: string) => {
-      return Boolean(category && category.trim().toLowerCase().includes('general'));
-    };
-
     // Calculate Grade Points:
-    // Student Category: A+=5, A=3, B=2, C=1
-    // General Category: A+=15, A=13, B=11, C=9
-    const getGradePoints = (avg: number, category: string) => {
-      const isGeneral = isGeneralCategory(category);
-      if (avg >= 90) return isGeneral ? 15 : 5; // A+
-      if (avg >= 70) return isGeneral ? 13 : 3; // A
-      if (avg >= 60) return isGeneral ? 11 : 2; // B
-      if (avg >= 50) return isGeneral ? 9 : 1;  // C
+    // Individual Competitions: A+=5, A=3, B=2, C=1
+    // Group Competitions: A+=15, A=13, B=11, C=9
+    const getGradePoints = (avg: number, isGroup: boolean) => {
+      if (avg >= 90) return isGroup ? 15 : 5; // A+
+      if (avg >= 70) return isGroup ? 13 : 3; // A
+      if (avg >= 60) return isGroup ? 11 : 2; // B
+      if (avg >= 50) return isGroup ? 9 : 1;  // C
       return 0;
     };
 
@@ -101,7 +95,7 @@ export default function GreenRoomDashboard() {
       if (avg >= 70) return 'A';
       if (avg >= 60) return 'B';
       if (avg >= 50) return 'C';
-      return null;
+      return 'No Grade';
     };
 
     let currentRank = 1;
@@ -110,7 +104,7 @@ export default function GreenRoomDashboard() {
         currentRank = idx + 1;
       }
       const position = currentRank;
-      const gradePoints = getGradePoints(s.avg, selectedProgram.category);
+      const gradePoints = getGradePoints(s.avg, Boolean(selectedProgram?.is_group));
       const positionPoints = getPositionPoints(position);
       const totalPoints = gradePoints + positionPoints;
       const grade = getGradeString(s.avg);
@@ -179,7 +173,7 @@ export default function GreenRoomDashboard() {
       aggregated[regId].count += 1;
     });
 
-    const isGeneral = Boolean(selectedProgram.category && selectedProgram.category.trim().toLowerCase().includes('general'));
+    const isGroup = Boolean(selectedProgram?.is_group);
     const sorted = Object.values(aggregated).map(a => ({
       ...a,
       avg: a.totalMark / a.count
@@ -191,12 +185,13 @@ export default function GreenRoomDashboard() {
         currentRank = idx + 1;
       }
       const position = currentRank;
-      let grade: string | null = null;
+      let grade = 'No Grade';
       let gradePoints = 0;
-      if (s.avg >= 90) { grade = 'A+'; gradePoints = isGeneral ? 15 : 5; }
-      else if (s.avg >= 70) { grade = 'A'; gradePoints = isGeneral ? 13 : 3; }
-      else if (s.avg >= 60) { grade = 'B'; gradePoints = isGeneral ? 11 : 2; }
-      else if (s.avg >= 50) { grade = 'C'; gradePoints = isGeneral ? 9 : 1; }
+      if (s.avg >= 90) { grade = 'A+'; gradePoints = isGroup ? 15 : 5; }
+      else if (s.avg >= 70) { grade = 'A'; gradePoints = isGroup ? 13 : 3; }
+      else if (s.avg >= 60) { grade = 'B'; gradePoints = isGroup ? 11 : 2; }
+      else if (s.avg >= 50) { grade = 'C'; gradePoints = isGroup ? 9 : 1; }
+      else { grade = 'No Grade'; gradePoints = 0; }
 
       const posPoints = position === 1 ? 3 : position === 2 ? 2 : position === 3 ? 1 : 0;
       return {
@@ -340,13 +335,13 @@ export default function GreenRoomDashboard() {
                   <div className="flex flex-wrap items-center gap-2 mt-1.5">
                     <span className="text-xs font-semibold px-2.5 py-0.5 rounded bg-slate-100 text-slate-700">{selectedProgram.category}</span>
                     <span className={`text-xs font-bold px-2.5 py-0.5 rounded ${
-                      selectedProgram.category?.toLowerCase().includes('general') 
+                      selectedProgram.is_group 
                         ? 'bg-amber-100 text-amber-900 border border-amber-300' 
                         : 'bg-emerald-100 text-[#14532D] border border-emerald-300'
                     }`}>
-                      {selectedProgram.category?.toLowerCase().includes('general')
-                        ? '🌟 General Category (A+=15, A=13, B=11, C=9)'
-                        : '🎓 Student Category (A+=5, A=3, B=2, C=1)'}
+                      {selectedProgram.is_group
+                        ? '👥 Group Competition (A+=15, A=13, B=11, C=9)'
+                        : '👤 Individual Competition (A+=5, A=3, B=2, C=1)'}
                     </span>
                     <span className="text-xs text-slate-500 font-medium">+ Pos Pts: 1st=3, 2nd=2, 3rd=1</span>
                   </div>
@@ -396,7 +391,7 @@ export default function GreenRoomDashboard() {
                             </td>
                             <td className="py-2.5 text-center font-mono font-bold">{r.avg.toFixed(2)}</td>
                             <td className="py-2.5 text-center">
-                              {r.grade ? (
+                              {r.grade && r.grade !== 'No Grade' ? (
                                 <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${
                                   r.grade === 'A+' ? 'bg-emerald-600 text-white' :
                                   r.grade === 'A' ? 'bg-emerald-100 text-emerald-800' :
@@ -405,7 +400,9 @@ export default function GreenRoomDashboard() {
                                   {r.grade}
                                 </span>
                               ) : (
-                                <span className="text-slate-400 font-normal">-</span>
+                                <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold text-[11px] border border-slate-200">
+                                  No Grade
+                                </span>
                               )}
                             </td>
                             <td className="py-2.5 text-center text-slate-600">{r.gradePoints} pts</td>

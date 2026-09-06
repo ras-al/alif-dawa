@@ -126,9 +126,9 @@ export default function AnnouncerDashboard() {
                   {index === 2 && <strong>3rd Place: </strong>}
                   {w.code_letter ? `[Code ${w.code_letter}] ` : ''}
                   {p.is_group ? (
-                    <><strong>Team {w.team_name}</strong> <span className="text-slate-400">({w.points} pts{w.grade ? ` - Grade: ${w.grade}` : ''})</span></>
+                    <><strong>Team {w.team_name}</strong> <span className="text-slate-400">({w.points} pts - Grade: <strong className="text-slate-700 font-semibold">{w.grade && w.grade !== 'No Grade' ? w.grade : 'No Grade'}</strong>)</span></>
                   ) : (
-                    <>{w.student_name} <span className="text-slate-400">({w.team_name} - {w.points} pts{w.grade ? ` - Grade: ${w.grade}` : ''})</span></>
+                    <>{w.student_name} <span className="text-slate-400">({w.team_name} - {w.points} pts - Grade: <strong className="text-slate-700 font-semibold">{w.grade && w.grade !== 'No Grade' ? w.grade : 'No Grade'}</strong>)</span></>
                   )}
                 </div>
               ))}
@@ -167,9 +167,9 @@ export default function AnnouncerDashboard() {
                   {index === 2 && <strong>3rd Place: </strong>}
                   {w.code_letter ? `[Code ${w.code_letter}] ` : ''}
                   {p.is_group ? (
-                    <><strong>Team {w.team_name}</strong> <span className="text-slate-400">({w.points} pts{w.grade ? ` - Grade: ${w.grade}` : ''})</span></>
+                    <><strong>Team {w.team_name}</strong> <span className="text-slate-400">({w.points} pts - Grade: <strong className="text-slate-700 font-semibold">{w.grade && w.grade !== 'No Grade' ? w.grade : 'No Grade'}</strong>)</span></>
                   ) : (
-                    <>{w.student_name} <span className="text-slate-400">({w.team_name} - {w.points} pts{w.grade ? ` - Grade: ${w.grade}` : ''})</span></>
+                    <>{w.student_name} <span className="text-slate-400">({w.team_name} - {w.points} pts - Grade: <strong className="text-slate-700 font-semibold">{w.grade && w.grade !== 'No Grade' ? w.grade : 'No Grade'}</strong>)</span></>
                   )}
                 </div>
               ))}
