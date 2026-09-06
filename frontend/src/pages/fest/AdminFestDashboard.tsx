@@ -129,10 +129,7 @@ export default function AdminFestDashboard() {
   const [newRegistration, setNewRegistration] = useState({ fest_participant_id: '', fest_program_id: '' });
   const [leaderAssign, setLeaderAssign] = useState({ user_id: '', fest_team_id: '', is_first_leader: false });
 
-  // Poster State
-  const [posterFile, setPosterFile] = useState<File | null>(null);
-  const [posterPreviewMode, setPosterPreviewMode] = useState<'sample' | 'tags'>('sample');
-  const [posterConfig, setPosterConfig] = useState<Record<string, {
+  const DEFAULT_POSTER_CONFIG: Record<string, {
     x: number;
     y: number;
     fontSize: number;
@@ -140,7 +137,7 @@ export default function AdminFestDashboard() {
     fontWeight?: string;
     fontFamily?: string;
     visible?: boolean;
-  }>>({
+  }> = {
     result_number: { x: 189, y: 546, fontSize: 310, color: '#F7E7A9', fontWeight: 'bold', fontFamily: 'Oswald, sans-serif', visible: true },
     category: { x: 260, y: 404, fontSize: 30, color: '#FFFFFF', fontWeight: 'normal', fontFamily: 'Inter, sans-serif', visible: true },
     program_title: { x: 260, y: 443, fontSize: 48, color: '#FFFFFF', fontWeight: 'bold', fontFamily: 'Inter, sans-serif', visible: true },
@@ -156,7 +153,22 @@ export default function AdminFestDashboard() {
     third_place_pos: { x: 550, y: 780, fontSize: 48, color: '#FFFFFF', fontWeight: 'normal', fontFamily: 'Inter, sans-serif', visible: true },
     third_place_name: { x: 600, y: 780, fontSize: 36, color: '#FFFFFF', fontWeight: 'bold', fontFamily: 'Inter, sans-serif', visible: true },
     third_place_team: { x: 600, y: 825, fontSize: 24, color: '#E2E8F0', fontWeight: 'normal', fontFamily: 'Inter, sans-serif', visible: true },
-  });
+  };
+
+  // Poster State
+  const [selectedPosterVersion, setSelectedPosterVersion] = useState<'v1' | 'v2' | 'v3'>('v1');
+  const [allPosterTemplates, setAllPosterTemplates] = useState<Record<string, any>>({});
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [posterPreviewMode, setPosterPreviewMode] = useState<'sample' | 'tags'>('sample');
+  const [posterConfig, setPosterConfig] = useState<Record<string, {
+    x: number;
+    y: number;
+    fontSize: number;
+    color: string;
+    fontWeight?: string;
+    fontFamily?: string;
+    visible?: boolean;
+  }>>({ ...DEFAULT_POSTER_CONFIG });
   const [posterImgSize, setPosterImgSize] = useState({ width: 1080, height: 1080 });
 
   // Participant Card State
@@ -183,7 +195,7 @@ export default function AdminFestDashboard() {
         api.get('/students'),
         api.get(`/fest/admin/results?event_type=${eventType}`),
         api.get(`/fest/admin/individual-points?event_type=${eventType}`),
-        api.get('/fest/public/poster-template'),
+        api.get('/fest/public/poster-templates'),
         api.get('/fest/admin/judge-assignments'),
         api.get('/fest/admin/fest-settings'),
         api.get('/fest/public/participant-card-template')
@@ -198,23 +210,29 @@ export default function AdminFestDashboard() {
       if (studRes.status === 'fulfilled') setStudents(studRes.value.data.data || studRes.value.data);
       if (resultRes.status === 'fulfilled') setResults(resultRes.value.data);
       if (individualPointsRes.status === 'fulfilled') setIndividualPoints(individualPointsRes.value.data);
-      if (posterRes.status === 'fulfilled' && posterRes.value.data && posterRes.value.data.image_url) {
-        setPosterTemplate(posterRes.value.data);
-        if (posterRes.value.data.config) {
-          const saved = posterRes.value.data.config;
-          // Legacy mappings
-          if (saved.student_name && !saved.first_place_name) saved.first_place_name = saved.student_name;
-          if (saved.team_name && !saved.first_place_team) saved.first_place_team = saved.team_name;
-          if (saved.position && !saved.first_place_pos) saved.first_place_pos = saved.position;
-          if (saved.event_number && !saved.result_number) saved.result_number = saved.event_number;
+      if (posterRes.status === 'fulfilled' && posterRes.value.data) {
+        const tMap = posterRes.value.data.templates || {};
+        setAllPosterTemplates(tMap);
+        const curVer = selectedPosterVersion || 'v1';
+        const activeTmpl = tMap[curVer] || tMap['v1'];
+        if (activeTmpl && activeTmpl.image_url) {
+          setPosterTemplate(activeTmpl);
+          if (activeTmpl.config) {
+            const saved = { ...activeTmpl.config };
+            // Legacy mappings
+            if (saved.student_name && !saved.first_place_name) saved.first_place_name = saved.student_name;
+            if (saved.team_name && !saved.first_place_team) saved.first_place_team = saved.team_name;
+            if (saved.position && !saved.first_place_pos) saved.first_place_pos = saved.position;
+            if (saved.event_number && !saved.result_number) saved.result_number = saved.event_number;
 
-          setPosterConfig(prev => {
-            const merged: any = { ...prev };
-            Object.keys(saved).forEach(k => {
-              merged[k] = { ...prev[k], ...saved[k] };
+            setPosterConfig(() => {
+              const merged: any = { ...DEFAULT_POSTER_CONFIG };
+              Object.keys(saved).forEach(k => {
+                merged[k] = { ...DEFAULT_POSTER_CONFIG[k], ...saved[k] };
+              });
+              return merged;
             });
-            return merged;
-          });
+          }
         }
       }
       if (assignRes.status === 'fulfilled') setJudgeAssignments(assignRes.value.data);
@@ -440,18 +458,47 @@ export default function AdminFestDashboard() {
     }
   };
 
+  const handleSelectPosterVersion = (ver: 'v1' | 'v2' | 'v3') => {
+    setSelectedPosterVersion(ver);
+    setPosterFile(null);
+    const tmpl = allPosterTemplates[ver];
+    if (tmpl && tmpl.image_url) {
+      setPosterTemplate(tmpl);
+      const saved = tmpl.config || {};
+      const merged: any = { ...DEFAULT_POSTER_CONFIG };
+      Object.keys(saved).forEach(k => {
+        merged[k] = { ...DEFAULT_POSTER_CONFIG[k], ...saved[k] };
+      });
+      setPosterConfig(merged);
+    } else {
+      setPosterTemplate(null);
+      setPosterConfig({ ...DEFAULT_POSTER_CONFIG });
+    }
+  };
+
   const handleSavePosterTemplate = async () => {
     const formData = new FormData();
     if (posterFile) formData.append('template', posterFile);
     formData.append('config', JSON.stringify(posterConfig));
+    formData.append('version', selectedPosterVersion);
 
     try {
       const res = await api.post('/fest/admin/poster-template', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      alert('Poster template saved successfully!');
-      setPosterTemplate(res.data);
+      alert(`Poster template (${selectedPosterVersion.toUpperCase()}) saved successfully!`);
+      const updatedTmpl = res.data;
+      setPosterTemplate(updatedTmpl);
       setPosterFile(null);
+      setAllPosterTemplates(prev => ({
+        ...prev,
+        [selectedPosterVersion]: {
+          configured: true,
+          version: selectedPosterVersion,
+          image_url: updatedTmpl.image_url,
+          config: updatedTmpl.config
+        }
+      }));
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to save poster template');
     }
@@ -1461,7 +1508,7 @@ export default function AdminFestDashboard() {
           )}
 
           {activeTab === 'poster' && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-6 text-blue-900 shadow-sm">
                 <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
                   <Info size={20} className="text-blue-600" /> Event Poster Configuration
@@ -1470,13 +1517,52 @@ export default function AdminFestDashboard() {
                 <p className="text-xs opacity-75">Click the eye icon next to any field to toggle its visibility on the poster.</p>
               </div>
 
+              {/* Design Template Versions (v1, v2, v3) Switcher */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">Select Design Version:</span>
+                  {(['v1', 'v2', 'v3'] as const).map((ver, idx) => {
+                    const isSelected = selectedPosterVersion === ver;
+                    const isConfigured = Boolean(allPosterTemplates[ver]?.image_url);
+                    return (
+                      <button
+                        key={ver}
+                        type="button"
+                        onClick={() => handleSelectPosterVersion(ver)}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#14532D] text-white shadow-md ring-2 ring-[#14532D]/30 scale-[1.02]'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                        }`}
+                      >
+                        <span>🎨 Design {idx + 1} ({ver.toUpperCase()})</span>
+                        {isConfigured ? (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${isSelected ? 'bg-emerald-300 text-emerald-950' : 'bg-emerald-100 text-emerald-800'}`}>
+                            ✓ Set
+                          </span>
+                        ) : (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                            Empty
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="text-xs text-slate-500">
+                  Editing: <span className="font-bold text-[#14532D] bg-[#14532D]/10 px-2 py-0.5 rounded">Design {selectedPosterVersion.toUpperCase()}</span> (Public visitors can download v1, v2, or v3)
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Editor Settings */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6 max-h-[85vh] overflow-y-auto">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Background Image</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Background Image for Design {selectedPosterVersion.toUpperCase()}
+                    </label>
                     <input type="file" accept="image/*" onChange={e => setPosterFile(e.target.files?.[0] || null)} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#14532D]/10 file:text-[#14532D] hover:file:bg-[#14532D]/20 cursor-pointer" />
-                    {posterTemplate && !posterFile && <p className="text-xs text-emerald-600 mt-2 font-medium">✓ Active template is loaded ({posterImgSize.width} × {posterImgSize.height}px)</p>}
+                    {posterTemplate?.image_url && !posterFile && <p className="text-xs text-emerald-600 mt-2 font-medium">✓ Active template for {selectedPosterVersion.toUpperCase()} is loaded ({posterImgSize.width} × {posterImgSize.height}px)</p>}
                   </div>
 
                   {/* Grouped Field Settings */}
@@ -1649,14 +1735,14 @@ export default function AdminFestDashboard() {
                   </div>
 
                   <button onClick={handleSavePosterTemplate} className="w-full bg-[#14532D] text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-[#14532D]/90 transition-all shadow-sm cursor-pointer">
-                    <Save size={18} /> Save Poster Configuration
+                    <Save size={18} /> Save Poster Configuration ({selectedPosterVersion.toUpperCase()})
                   </button>
                 </div>
 
                 {/* Live Preview (Exact Scale) */}
                 <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 flex flex-col items-center justify-start min-h-[550px] w-full relative">
                   <div className="w-full flex justify-between items-center mb-3">
-                    <h4 className="font-bold text-slate-800 text-sm">Poster Live Preview</h4>
+                    <h4 className="font-bold text-slate-800 text-sm">Poster Live Preview ({selectedPosterVersion.toUpperCase()})</h4>
                     <div className="flex items-center gap-1 bg-slate-200 p-0.5 rounded text-xs">
                       <button
                         type="button"
@@ -1726,7 +1812,8 @@ export default function AdminFestDashboard() {
                   ) : (
                     <div className="text-center text-slate-400 py-32">
                       <ImageIcon size={48} className="mx-auto mb-3 opacity-50" />
-                      <p className="font-medium">No Template Uploaded</p>
+                      <p className="font-bold text-slate-700">No Template Uploaded for Design {selectedPosterVersion.toUpperCase()}</p>
+                      <p className="text-xs text-slate-400 mt-1">Upload a background image on the left to configure this design version.</p>
                     </div>
                   )}
                 </div>

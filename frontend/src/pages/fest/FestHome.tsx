@@ -35,7 +35,7 @@ const FestHome = () => {
   const [loading, setLoading] = useState(true);
   const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({});
 
-  const { renderPoster, generatePoster, hasTemplate } = usePosterGenerator();
+  const { renderPoster, generatePoster, hasTemplate, availableVersions } = usePosterGenerator();
   const [activePosterModal, setActivePosterModal] = useState<{
     groupTitle: string;
     groupCategory: string;
@@ -46,7 +46,12 @@ const FestHome = () => {
     renderedBlob: Blob | null;
     renderedFileName: string | null;
     loading: boolean;
+    selectedVersion: string;
+    isGroup?: boolean;
+    rawGroup?: any;
   } | null>(null);
+
+  const [sharingGroupId, setSharingGroupId] = useState<string | null>(null);
 
   const toggleEvent = (key: string) => {
     setExpandedEvents(prev => ({ ...prev, [key]: !prev[key] }));
@@ -84,12 +89,13 @@ const FestHome = () => {
     setTimeout(() => setCopiedNotification(null), 3000);
   };
 
-  const openPosterModal = async (group: { title: string; category: string; sequence_number?: number; is_group?: boolean; results: Result[] }) => {
+  const openPosterModal = async (group: { title: string; category: string; sequence_number?: number; is_group?: boolean; results: Result[] }, versionToUse?: string) => {
     if (!hasTemplate) {
       alert('No poster template has been configured in the Admin page yet.');
       return;
     }
 
+    const initialVersion = versionToUse || (availableVersions && availableVersions.length > 0 ? availableVersions[0] : 'v1');
     const topWinners = group.results.filter(r => r.position <= 3).sort((a, b) => a.position - b.position);
 
     setActivePosterModal({
@@ -102,6 +108,9 @@ const FestHome = () => {
       renderedBlob: null,
       renderedFileName: null,
       loading: true,
+      selectedVersion: initialVersion,
+      isGroup: group.is_group,
+      rawGroup: group,
     });
 
     const rendered = await renderPoster({
@@ -111,7 +120,34 @@ const FestHome = () => {
       sequence_number: group.sequence_number,
       is_group: group.is_group,
       results: group.results,
-    });
+    }, initialVersion);
+
+    if (rendered) {
+      setActivePosterModal(prev => prev ? {
+        ...prev,
+        renderedUrl: rendered.dataUrl,
+        renderedBlob: rendered.blob,
+        renderedFileName: rendered.fileName,
+        loading: false,
+      } : null);
+    } else {
+      setActivePosterModal(prev => prev ? { ...prev, loading: false } : null);
+    }
+  };
+
+  const handleSwitchPosterVersion = async (version: string) => {
+    if (!activePosterModal?.rawGroup || activePosterModal.selectedVersion === version) return;
+    const group = activePosterModal.rawGroup;
+    setActivePosterModal(prev => prev ? { ...prev, selectedVersion: version, loading: true } : null);
+
+    const rendered = await renderPoster({
+      id: `${group.title}-${group.category}`,
+      program_title: group.title,
+      category: group.category,
+      sequence_number: group.sequence_number,
+      is_group: group.is_group,
+      results: group.results,
+    }, version);
 
     if (rendered) {
       setActivePosterModal(prev => prev ? {
@@ -128,6 +164,9 @@ const FestHome = () => {
 
   const handleShareGroup = async (e: React.MouseEvent, group: any) => {
     e.stopPropagation();
+    const groupKey = `${group.title}-${group.category}`;
+    setSharingGroupId(groupKey);
+
     const resPrefix = group.sequence_number ? `Result #${String(group.sequence_number).padStart(3, '0')} - ` : '';
     const winnersText = group.results
       .filter((r: Result) => r.position <= 3)
@@ -140,23 +179,83 @@ const FestHome = () => {
     
     const text = `🏆 ${resPrefix}${group.title} (${group.category})\nAlif Dawa Fest Results:\n\n${winnersText}\n\nView live results: ${window.location.href}`;
 
-    if (navigator.share) {
+    let fileToShare: File | null = null;
+    let posterBlobUrl: string | null = null;
+    let posterFileName: string | null = null;
+
+    if (hasTemplate) {
+      try {
+        const ver = (availableVersions && availableVersions.length > 0 ? availableVersions[0] : 'v1');
+        const rendered = await renderPoster({
+          id: groupKey,
+          program_title: group.title,
+          category: group.category,
+          sequence_number: group.sequence_number,
+          is_group: group.is_group,
+          results: group.results,
+        }, ver);
+
+        if (rendered) {
+          fileToShare = rendered.file || new File([rendered.blob], rendered.fileName, { type: 'image/png' });
+          posterBlobUrl = rendered.dataUrl;
+          posterFileName = rendered.fileName;
+        }
+      } catch (err) {
+        console.warn('Could not render poster for sharing:', err);
+      }
+    }
+
+    setSharingGroupId(null);
+
+    // Share both image file and text if supported
+    if (fileToShare && navigator.canShare && navigator.canShare({ files: [fileToShare] })) {
       try {
         await navigator.share({
+          files: [fileToShare],
           title: `Alif Dawa Fest - ${resPrefix}${group.title} Results`,
-          text,
+          text: text,
+        });
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        console.warn('File share aborted or failed:', err);
+      }
+    }
+
+    // Try text share via navigator.share and also download poster image
+    if (navigator.share) {
+      try {
+        if (posterBlobUrl && posterFileName) {
+          const a = document.createElement('a');
+          a.href = posterBlobUrl;
+          a.download = posterFileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+        await navigator.share({
+          title: `Alif Dawa Fest - ${resPrefix}${group.title} Results`,
+          text: text,
           url: window.location.href
         });
         return;
       } catch (err: any) {
         if (err.name === 'AbortError') return;
-        console.warn('Web Share failed, falling back to clipboard:', err);
       }
     }
 
+    // Fallback: download poster file and copy text to clipboard
+    if (posterBlobUrl && posterFileName) {
+      const a = document.createElement('a');
+      a.href = posterBlobUrl;
+      a.download = posterFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
     const copied = await copyTextToClipboard(text);
     if (copied) {
-      showNotification('Results summary copied to clipboard!');
+      showNotification(posterBlobUrl ? 'Poster downloaded & summary copied to clipboard!' : 'Results summary copied to clipboard!');
     } else {
       alert('Could not copy automatically. Please copy the text manually.');
     }
@@ -164,21 +263,33 @@ const FestHome = () => {
 
   const handleSharePosterImage = async () => {
     if (!activePosterModal?.renderedBlob || !activePosterModal?.renderedFileName) return;
+    const resPrefix = activePosterModal.sequenceNumber ? `Result #${String(activePosterModal.sequenceNumber).padStart(3, '0')} - ` : '';
+    const winnersText = activePosterModal.winners
+      .map((r: Result) => {
+        const isGrp = r.is_group ?? activePosterModal.isGroup;
+        const displayName = isGrp ? r.team_name : `${r.student_name} (${r.team_name})`;
+        return `${r.position === 1 ? '🥇 1st' : r.position === 2 ? '🥈 2nd' : '🥉 3rd'}: ${displayName} - ${r.points} PTS`;
+      })
+      .join('\n');
+    
+    const text = `🏆 ${resPrefix}${activePosterModal.groupTitle} (${activePosterModal.groupCategory})\nAlif Dawa Fest Results:\n\n${winnersText}\n\nView live results: ${window.location.href}`;
+
     try {
       const file = new File([activePosterModal.renderedBlob], activePosterModal.renderedFileName, { type: 'image/png' });
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: `${activePosterModal.groupTitle} - Result Poster`,
-          text: `🏆 ${activePosterModal.groupTitle} (${activePosterModal.groupCategory}) - Alif Dawa Fest Winner Poster`
+          title: `Alif Dawa Fest - ${resPrefix}${activePosterModal.groupTitle} Results`,
+          text: text
         });
         return;
       }
       if (navigator.share) {
+        handleDownloadActivePoster();
         await navigator.share({
-          title: `${activePosterModal.groupTitle} - Result Poster`,
-          text: `🏆 ${activePosterModal.groupTitle} (${activePosterModal.groupCategory}) - Alif Dawa Fest`,
+          title: `Alif Dawa Fest - ${resPrefix}${activePosterModal.groupTitle} Results`,
+          text: text,
           url: window.location.href
         });
         return;
@@ -188,9 +299,10 @@ const FestHome = () => {
       console.warn('Share poster failed:', err);
     }
 
-    const copied = await copyTextToClipboard(window.location.href);
+    handleDownloadActivePoster();
+    const copied = await copyTextToClipboard(text);
     if (copied) {
-      showNotification('Web link copied to clipboard!');
+      showNotification('Poster downloaded & summary copied to clipboard!');
     }
   };
 
@@ -643,10 +755,15 @@ const FestHome = () => {
                             <button 
                               type="button"
                               onClick={(e) => handleShareGroup(e, group)} 
-                              title="Share Results Summary"
-                              className="flex items-center justify-center w-10 h-10 bg-white text-[#111111] hover:bg-slate-200 border-[2px] border-[#111111] shadow-[2px_2px_0_#111111] transition-all cursor-pointer"
+                              title="Share Result Poster & Summary"
+                              disabled={sharingGroupId === groupKey}
+                              className="flex items-center justify-center w-10 h-10 bg-white text-[#111111] hover:bg-slate-200 border-[2px] border-[#111111] shadow-[2px_2px_0_#111111] transition-all cursor-pointer disabled:opacity-50"
                             >
-                              <Share2 size={18} strokeWidth={2.5} />
+                              {sharingGroupId === groupKey ? (
+                                <Loader2 size={18} className="animate-spin text-[#7A0C1E]" />
+                              ) : (
+                                <Share2 size={18} strokeWidth={2.5} />
+                              )}
                             </button>
                             <button 
                               type="button"
@@ -911,6 +1028,32 @@ const FestHome = () => {
               </button>
             </div>
 
+            {/* Design Version Selector (v1, v2, v3) */}
+            {availableVersions && availableVersions.length > 1 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3 bg-white p-2.5 border-[2px] border-[#111111] shadow-[2px_2px_0_#111111]">
+                <span className="text-[11px] font-black uppercase tracking-wider text-[#111111]">
+                  Choose Poster Design:
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {availableVersions.map((v, idx) => (
+                    <button
+                      key={v}
+                      type="button"
+                      disabled={activePosterModal.loading}
+                      onClick={() => handleSwitchPosterVersion(v)}
+                      className={`px-3 py-1 text-xs font-black uppercase tracking-wider transition-all border-[2px] border-[#111111] cursor-pointer disabled:opacity-50 ${
+                        activePosterModal.selectedVersion === v
+                          ? 'bg-[#7A0C1E] text-white shadow-[2px_2px_0_#111111]'
+                          : 'bg-white text-[#111111] hover:bg-slate-100'
+                      }`}
+                    >
+                      Design {idx + 1} ({v.toUpperCase()})
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Poster Preview Area */}
             <div className="flex-1 overflow-auto border-[3px] border-[#111111] mb-4 bg-[#222222] flex items-center justify-center p-3 sm:p-6 min-h-[300px]">
               {activePosterModal.loading ? (
@@ -948,7 +1091,7 @@ const FestHome = () => {
                   onClick={handleSharePosterImage}
                   className="flex items-center gap-1.5 px-4 py-2 sm:px-5 sm:py-2.5 bg-white text-[#111111] font-black text-xs sm:text-sm uppercase tracking-wider border-[2px] sm:border-[3px] border-[#111111] shadow-[3px_3px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer disabled:opacity-50"
                 >
-                  <Share2 size={16} strokeWidth={2.5} /> Share Poster
+                  <Share2 size={16} strokeWidth={2.5} /> Share Poster {activePosterModal.selectedVersion ? `(${activePosterModal.selectedVersion.toUpperCase()})` : ''}
                 </button>
                 <button 
                   type="button"
@@ -956,7 +1099,7 @@ const FestHome = () => {
                   onClick={handleDownloadActivePoster}
                   className="flex items-center gap-1.5 px-4 py-2 sm:px-6 sm:py-2.5 bg-[#7A0C1E] text-white font-black text-xs sm:text-sm uppercase tracking-wider border-[2px] sm:border-[3px] border-[#111111] shadow-[3px_3px_0_#111111] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all cursor-pointer disabled:opacity-50"
                 >
-                  <Download size={16} strokeWidth={2.5} /> Download Poster
+                  <Download size={16} strokeWidth={2.5} /> Download Poster {activePosterModal.selectedVersion ? `(${activePosterModal.selectedVersion.toUpperCase()})` : ''}
                 </button>
               </div>
             </div>

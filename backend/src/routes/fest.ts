@@ -25,7 +25,7 @@ const storage = multer.diskStorage({
     if (file.fieldname === 'card_template') {
       cb(null, `participant-card-template${ext}`);
     } else {
-      cb(null, `poster-template${ext}`);
+      cb(null, `poster-template-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
     }
   }
 });
@@ -240,12 +240,48 @@ router.get('/leader/notifications/stream', async (req: AuthRequest, res) => {
   });
 });
 
-// Public GET poster template
-router.get('/public/poster-template', async (_req, res) => {
+// Public GET all poster templates
+router.get('/public/poster-templates', async (_req, res) => {
   try {
-    const { rows } = await pool.query(`SELECT image_url, config FROM fest_poster_templates ORDER BY id DESC LIMIT 1`);
+    const { rows } = await pool.query(
+      `SELECT id, version, image_url, config, updated_at FROM fest_poster_templates ORDER BY version ASC`
+    );
+    const templates: Record<string, any> = {};
+    rows.forEach(r => {
+      const v = r.version || 'v1';
+      templates[v] = {
+        configured: Boolean(r.image_url),
+        id: r.id,
+        version: v,
+        image_url: r.image_url,
+        config: r.config,
+        updated_at: r.updated_at
+      };
+    });
+    res.json({
+      templates,
+      available_versions: Object.keys(templates).filter(v => templates[v].configured),
+      all_versions: ['v1', 'v2', 'v3']
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// Public GET single poster template (supports ?version=v1)
+router.get('/public/poster-template', async (req, res) => {
+  try {
+    const version = (req.query.version as string) || 'v1';
+    let { rows } = await pool.query(
+      `SELECT id, version, image_url, config FROM fest_poster_templates WHERE version = $1 LIMIT 1`,
+      [version]
+    );
     if (rows.length === 0) {
-      return res.json({ configured: false, image_url: null, config: null });
+      const fallback = await pool.query(`SELECT id, version, image_url, config FROM fest_poster_templates ORDER BY id ASC LIMIT 1`);
+      rows = fallback.rows;
+    }
+    if (rows.length === 0) {
+      return res.json({ configured: false, version, image_url: null, config: null });
     }
     res.json({ configured: true, ...rows[0] });
   } catch (err: any) {
@@ -1873,13 +1909,14 @@ router.get('/admin/results', authenticate, authorize('admin'), async (req, res) 
   }
 });
 
-// Admin upload poster template and save config
+// Admin upload poster template and save config for a specific version (v1, v2, v3)
 router.post('/admin/poster-template', authenticate, authorize('admin'), upload.single('template'), async (req: AuthRequest, res) => {
   try {
     const config = req.body.config || '{}';
+    const version = (req.body.version as string) || 'v1';
     
-    // Check if there is an existing template to update or insert new
-    const existing = await pool.query(`SELECT id, image_url FROM fest_poster_templates ORDER BY id DESC LIMIT 1`);
+    // Check if there is an existing template for this version
+    const existing = await pool.query(`SELECT id, image_url FROM fest_poster_templates WHERE version = $1 LIMIT 1`, [version]);
     
     let imageUrl = existing.rows.length > 0 ? existing.rows[0].image_url : '';
     if (req.file) {
@@ -1887,7 +1924,7 @@ router.post('/admin/poster-template', authenticate, authorize('admin'), upload.s
     }
 
     if (!imageUrl && !req.file) {
-      return res.status(400).json({ error: 'Image file is required for the first template.' });
+      return res.status(400).json({ error: `Image file is required for template ${version}.` });
     }
 
     if (existing.rows.length > 0) {
@@ -1897,12 +1934,12 @@ router.post('/admin/poster-template', authenticate, authorize('admin'), upload.s
       );
     } else {
       await pool.query(
-        `INSERT INTO fest_poster_templates (image_url, config) VALUES ($1, $2)`,
-        [imageUrl, config]
+        `INSERT INTO fest_poster_templates (version, image_url, config) VALUES ($1, $2, $3)`,
+        [version, imageUrl, config]
       );
     }
 
-    res.json({ success: true, image_url: imageUrl, config: JSON.parse(config) });
+    res.json({ success: true, version, image_url: imageUrl, config: JSON.parse(config) });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Server error' });
   }

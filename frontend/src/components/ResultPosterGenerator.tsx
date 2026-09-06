@@ -27,6 +27,7 @@ export interface EventPosterData {
 export interface RenderedPoster {
   dataUrl: string;
   blob: Blob;
+  file?: File;
   fileName: string;
 }
 
@@ -42,15 +43,38 @@ export const FONT_OPTIONS = [
   { label: 'Cursive (Signature Style)', value: 'cursive' }
 ];
 
+export interface PosterTemplateInfo {
+  id?: number;
+  version: string;
+  image_url: string;
+  config: Record<string, any>;
+  configured?: boolean;
+}
+
 export function usePosterGenerator() {
+  const [templates, setTemplates] = useState<Record<string, PosterTemplateInfo>>({});
+  const [availableVersions, setAvailableVersions] = useState<string[]>([]);
   const [template, setTemplate] = useState<any>(null);
   const [loadingPosterId, setLoadingPosterId] = useState<number | string | null>(null);
 
   const fetchTemplate = useCallback(async () => {
     try {
-      const res = await api.get('/fest/public/poster-template');
-      if (res.data && res.data.configured && res.data.image_url) {
-        setTemplate(res.data);
+      const res = await api.get('/fest/public/poster-templates');
+      if (res.data && res.data.templates) {
+        setTemplates(res.data.templates);
+        const avail = res.data.available_versions || Object.keys(res.data.templates).filter((k: string) => res.data.templates[k].configured);
+        setAvailableVersions(avail);
+        const def = res.data.templates['v1'] || (avail.length > 0 ? res.data.templates[avail[0]] : null);
+        if (def && def.configured && def.image_url) {
+          setTemplate(def);
+        }
+      } else {
+        const single = await api.get('/fest/public/poster-template');
+        if (single.data && single.data.configured && single.data.image_url) {
+          setTemplate(single.data);
+          setTemplates({ v1: single.data });
+          setAvailableVersions(['v1']);
+        }
       }
     } catch {
       // Ignore if no template exists
@@ -61,9 +85,10 @@ export function usePosterGenerator() {
     fetchTemplate();
   }, [fetchTemplate]);
 
-  const renderPoster = async (data: EventPosterData): Promise<RenderedPoster | null> => {
-    if (!template || !template.image_url) {
-      alert("No poster template configured in Admin page.");
+  const renderPoster = async (data: EventPosterData, version: string = 'v1'): Promise<RenderedPoster | null> => {
+    const activeTmpl = templates[version] || (version === 'v1' ? template : null) || template;
+    if (!activeTmpl || !activeTmpl.image_url) {
+      alert(`No poster template configured for ${version.toUpperCase()} in Admin page.`);
       return null;
     }
 
@@ -78,7 +103,7 @@ export function usePosterGenerator() {
       }
 
       const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
-      const imageUrl = template.image_url.startsWith('http') ? template.image_url : `${apiBase}${template.image_url}`;
+      const imageUrl = activeTmpl.image_url.startsWith('http') ? activeTmpl.image_url : `${apiBase}${activeTmpl.image_url}`;
 
       // Fetch as blob to prevent canvas taint issues
       const res = await fetch(imageUrl);
@@ -128,10 +153,10 @@ export function usePosterGenerator() {
 
       // Check whether this event is a group event
       const isGroup = Boolean(
-        data.is_group ||
-        (first as any)?.is_group ||
-        (second as any)?.is_group ||
-        (third as any)?.is_group ||
+        data.is_group || 
+        (first as any)?.is_group || 
+        (second as any)?.is_group || 
+        (third as any)?.is_group || 
         data.results?.some((r: any) => r.is_group)
       );
 
@@ -179,7 +204,7 @@ export function usePosterGenerator() {
         third_place_team: getWinnerTeamDisplay(third),
       };
 
-      const config = template.config || {};
+      const config = activeTmpl.config || {};
 
       // Draw configured fields exactly as admin positioned them with constant left margin
       Object.entries(config).forEach(([key, settings]: [string, any]) => {
@@ -208,7 +233,8 @@ export function usePosterGenerator() {
         ctx.fillText(text, settings.x, settings.y);
       });
 
-      const fileName = `${(data.program_title || 'Event').replace(/[^a-zA-Z0-9_-]/g, '_')}_${(data.category || '').replace(/[^a-zA-Z0-9_-]/g, '_')}_Result_Poster.png`;
+      const vTag = version ? `_${version}` : '';
+      const fileName = `${(data.program_title || 'Event').replace(/[^a-zA-Z0-9_-]/g, '_')}_${(data.category || '').replace(/[^a-zA-Z0-9_-]/g, '_')}${vTag}_Result_Poster.png`;
 
       return await new Promise<RenderedPoster | null>((resolve) => {
         canvas.toBlob((outBlob) => {
@@ -216,8 +242,9 @@ export function usePosterGenerator() {
             resolve(null);
             return;
           }
+          const file = new File([outBlob], fileName, { type: 'image/png' });
           const dataUrl = canvas.toDataURL('image/png');
-          resolve({ dataUrl, blob: outBlob, fileName });
+          resolve({ dataUrl, blob: outBlob, file, fileName });
         }, 'image/png');
       });
 
@@ -228,11 +255,11 @@ export function usePosterGenerator() {
     }
   };
 
-  const generatePoster = async (data: EventPosterData) => {
-    const posterKey = data.id || data.program_title;
+  const generatePoster = async (data: EventPosterData, version: string = 'v1') => {
+    const posterKey = `${data.id || data.program_title}-${version}`;
     setLoadingPosterId(posterKey);
     try {
-      const rendered = await renderPoster(data);
+      const rendered = await renderPoster(data, version);
       if (!rendered) return;
 
       const a = document.createElement('a');
@@ -250,8 +277,11 @@ export function usePosterGenerator() {
     generatePoster,
     renderPoster,
     loadingPosterId,
-    hasTemplate: !!(template && template.image_url),
+    hasTemplate: !!(template && template.image_url) || availableVersions.length > 0,
     template,
+    templates,
+    availableVersions,
+    allVersions: ['v1', 'v2', 'v3'],
     reloadTemplate: fetchTemplate
   };
 }
