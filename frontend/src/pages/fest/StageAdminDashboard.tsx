@@ -36,9 +36,10 @@ export default function StageAdminDashboard() {
       setParticipants(parts);
       setIsGroupEvent(res.data.is_group || false);
       const present = new Set<number>();
-      parts.forEach((p: any) => { if (p.is_present) present.add(p.registration_id); });
+      parts.forEach((p: any) => { if (p.is_present || p.code_letter) present.add(p.registration_id); });
       setPresentIds(present);
-    } catch (err) { console.error(err); }
+      return parts;
+    } catch (err) { console.error(err); return []; }
   };
 
   const handleGoLive = async (program: any) => {
@@ -46,8 +47,9 @@ export default function StageAdminDashboard() {
       await api.put(`/fest/admin/programs/${program.id}/status-notify`, { status: 'live' });
       await fetchPrograms();
       setActiveProgram({ ...program, status: 'live' });
-      await fetchParticipants(program.id);
-      setStep('attendance');
+      const parts = await fetchParticipants(program.id);
+      const hasAnyCodes = parts?.some((p: any) => p.code_letter);
+      setStep(hasAnyCodes ? 'codes' : 'attendance');
     } catch { alert('Failed to go live'); }
   };
 
@@ -67,13 +69,9 @@ export default function StageAdminDashboard() {
 
   const handleOpenWorkflow = async (program: any) => {
     setActiveProgram(program);
-    await fetchParticipants(program.id);
-    if (program.status === 'live') {
-      const hasAnyCodes = (await api.get(`/fest/stage-admin/programs/${program.id}/participants`)).data.participants?.some((p: any) => p.code_letter);
-      setStep(hasAnyCodes ? 'codes' : 'attendance');
-    } else {
-      setStep('attendance');
-    }
+    const parts = await fetchParticipants(program.id);
+    const hasAnyCodes = parts?.some((p: any) => p.code_letter);
+    setStep(hasAnyCodes ? 'codes' : 'attendance');
   };
 
   const togglePresent = (regId: number) => {
@@ -161,7 +159,7 @@ export default function StageAdminDashboard() {
     } catch { alert('Failed to update status'); }
   };
 
-  const presentParticipants = participants.filter(p => p.is_present);
+  const presentParticipants = participants.filter(p => p.is_present || p.code_letter);
   const filteredPrograms = programs.filter(p => {
     const catMatch = categoryFilter === 'All' || p.category === categoryFilter;
     const typeMatch = typeFilter === 'All' || p.type === typeFilter;
@@ -184,10 +182,14 @@ export default function StageAdminDashboard() {
           return (
             <React.Fragment key={s.key}>
               {i > 0 && <div className={`w-8 sm:w-12 h-0.5 ${isDone ? 'bg-emerald-500' : 'bg-slate-200'}`} />}
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${isActive ? 'bg-[#14532D] text-white shadow-lg scale-105' : isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+              <button
+                type="button"
+                onClick={() => setStep(s.key as WorkflowStep)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer hover:opacity-90 ${isActive ? 'bg-[#14532D] text-white shadow-lg scale-105' : isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+              >
                 <Icon size={14} />
                 <span className="hidden sm:inline">{s.label}</span>
-              </div>
+              </button>
             </React.Fragment>
           );
         })}
@@ -237,6 +239,11 @@ export default function StageAdminDashboard() {
                     className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 accent-emerald-600" />
                   <span className="font-mono font-bold text-slate-900 text-sm bg-slate-100 px-2 py-0.5 rounded">{p.chest_number}</span>
                   <span className="font-medium text-slate-800 flex-1">{p.student_name}</span>
+                  {p.code_letter && (
+                    <span className="font-mono font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded text-xs">
+                      Code {p.code_letter}
+                    </span>
+                  )}
                   <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{p.team_name}</span>
                 </label>
               ))}
@@ -435,17 +442,21 @@ export default function StageAdminDashboard() {
                     {p.status === 'live' && (
                       <>
                         <button onClick={() => handleOpenWorkflow(p)} className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1.5 text-sm bg-blue-50 px-3 py-1.5 rounded-lg"><ArrowRight size={16} /> Continue</button>
-                        <button onClick={() => handleSetStatus(p.id, 'scheduled')} className="text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1.5 text-sm"><RefreshCw size={16} /> Reset</button>
+                        <button onClick={() => { if (confirm('Reset program status to Scheduled?')) handleSetStatus(p.id, 'scheduled'); }} className="text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1.5 text-sm"><RefreshCw size={16} /> Reset</button>
                       </>
                     )}
                     {p.status === 'judging' && (
                       <>
-                        <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-3 py-1.5 rounded-lg">Awaiting Judges</span>
-                        <button onClick={() => handleSetStatus(p.id, 'scheduled')} className="text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1.5 text-sm ml-2"><RefreshCw size={16} /> Reset</button>
+                        <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2.5 py-1 rounded-lg">Awaiting Judges</span>
+                        <button onClick={() => handleOpenWorkflow(p)} className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1.5 text-sm bg-blue-50 px-3 py-1.5 rounded-lg ml-1"><ArrowRight size={16} /> View Codes</button>
+                        <button onClick={() => { if (confirm('Reset program status to Scheduled?')) handleSetStatus(p.id, 'scheduled'); }} className="text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1.5 text-sm ml-1"><RefreshCw size={16} /> Reset</button>
                       </>
                     )}
                     {p.status === 'completed' && (
-                      <button onClick={() => handleSetStatus(p.id, 'scheduled')} className="text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1.5 text-sm"><RefreshCw size={16} /> Reset</button>
+                      <>
+                        <button onClick={() => handleOpenWorkflow(p)} className="text-slate-700 hover:text-slate-900 font-semibold flex items-center gap-1.5 text-sm bg-slate-100 px-3 py-1.5 rounded-lg"><ArrowRight size={16} /> View Codes</button>
+                        <button onClick={() => { if (confirm('Reset program status to Scheduled?')) handleSetStatus(p.id, 'scheduled'); }} className="text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-1.5 text-sm"><RefreshCw size={16} /> Reset</button>
+                      </>
                     )}
                   </div>
                 </td>
